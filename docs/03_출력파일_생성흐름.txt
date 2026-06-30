@@ -1,0 +1,62 @@
+출력 파일 생성 흐름 - salary_system V4
+=====================================
+
+[실행 파일]
+- 실행.bat 또는 실행_v3.bat 또는 run.py 실행
+- 정산월 입력: YYYY-MM 또는 YYYYMM
+
+[주요 처리 순서]
+
+1. run.py
+   - 사원마스터 읽기
+   - 공제건집계 읽기
+   - 영판매 파일 읽기
+   - 사원별 수수료 계산
+
+2. arba_process.py
+   - 생성: output/YYYY-MM/아르바이트_정산서.xlsx
+
+3. sales_report.py
+   - 생성: output/YYYY-MM/매출집계.xlsx
+
+4. expense_report.py
+   - 생성: output/YYYY-MM/경비지원및공제_집계.xlsx
+
+5. sales_analysis.py
+   - 생성: output/YYYY-MM/매출집계_분석.xlsx
+   - 이후 history_update.py가 이 파일을 DB 업데이트 기준으로 사용합니다.
+
+6. amd_report.py
+   - 생성: output/YYYY-MM/판매수수료작업시트_AMD.xlsx
+
+7. run.py / make_notice()
+   - 생성: output/YYYY-MM/개별통지문.xlsx
+
+8. sales_summary.py
+   - 생성: output/YYYY-MM/판매수수료집계.xlsx
+
+9. transfer_report.py
+   - 생성: output/YYYY-MM/중간관리판매수수료이체내역.xlsx
+   - 템플릿 사용 안 함. 코드에서 직접 생성.
+
+10. tax_invoice_report.py
+   - 생성: output/YYYY-MM/세금계산서_YYYY-MM.xlsx
+
+11. run.py / make_summary()
+   - 생성: output/YYYY-MM/처리결과_요약.txt
+
+12. history_update.py
+   - 입력: output/YYYY-MM/매출집계_분석.xlsx
+   - 업데이트: DB/월별손익DB.xlsx
+   - 같은 년-월 + 매장코드가 있으면 기존 행 삭제 후 새 행으로 교체
+   - 기준일은 해당월 말일
+   - 분기/반기/시즌/시즌연도 자동 부여
+
+13. history_report.py
+   - 생성: output/연도별_분기별_시즌별_손익분석.xlsx
+   - 포함 시트: Dashboard, 월별요약, 분기분석, 시즌분석, 매장별월별추이, 최신월_TOP_BOTTOM
+
+[최종 산출물 핵심]
+- 월별 정산용: output/YYYY-MM/*.xlsx
+- 누적 DB: DB/월별손익DB.xlsx
+- 경영진 분석용: output/연도별_분기별_시즌별_손익분석.xlsx

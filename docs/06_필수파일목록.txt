@@ -1,0 +1,54 @@
+필수 파일 목록 - salary_system V4
+===============================
+
+[실행 필수 Python 파일]
+- run.py
+- sales_report.py
+- expense_report.py
+- sales_analysis.py
+- amd_report.py
+- arba_process.py
+- sales_summary.py
+- transfer_report.py
+- tax_invoice_report.py
+- history_update.py
+- history_report.py
+
+[필수 폴더]
+- input/
+- output/
+- templates/
+- DB/
+- backup/
+
+[필수 DB]
+- DB/월별손익DB.xlsx
+
+[필수 템플릿]
+- templates/개별통지문_템플릿.xlsx
+- templates/판매수수료집계_템플릿.xlsx
+- templates/세금계산서출력_템플릿.xlsx
+
+[월별 정산 필수 입력]
+- input/사원마스터.xlsx
+- input/영*판매*YYYYMM*.xlsx
+- input/◈매장공제건 집계(YY년 MM월).xlsx
+- input/★YY년 MM월_경비내역서.xlsx
+- input/YY년 MM월 재고실사 공제건 합계_수정.xlsx
+- input/사원현황_일용직_YYYYMM.xlsx
+- input/급여상여명세서_일용직_YYYYMM.xlsx
+- input/급여상여명세서_매장직_YYYYMM.xlsx
+- input/월별근태_일용직_YYYYMM.xlsx
+- input/*로젠*고객직배*.xlsx
+- input/매장전화요금내역.xlsx
+- input/중간관리매장_매입세금계산서_기재사항정보.xlsx
+
+[DB 업데이트만 할 때 최소 필요]
+- DB/월별손익DB.xlsx
+- output/YYYY-MM/매출집계_분석.xlsx
+- history_update.py
+- history_report.py
+
+[보고서만 재생성할 때 최소 필요]
+- DB/월별손익DB.xlsx
+- history_report.py

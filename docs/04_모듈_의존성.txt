@@ -1,0 +1,66 @@
+모듈 의존성 정리 - salary_system V4
+==================================
+
+[메인]
+run.py
+  ├─ sales_report.py
+  ├─ expense_report.py
+  ├─ sales_analysis.py
+  ├─ amd_report.py
+  ├─ arba_process.py
+  ├─ sales_summary.py
+  ├─ transfer_report.py
+  ├─ tax_invoice_report.py
+  └─ history_update.py
+        └─ history_report.py
+
+[모듈별 역할]
+
+1. run.py
+   - 전체 실행 흐름 제어
+   - 정산월 입력
+   - 주요 입력파일 탐지
+   - 사원별 기본 계산
+   - 개별통지문 생성
+   - 처리결과 요약 생성
+   - 마지막에 history_update.py 호출
+
+2. sales_report.py
+   - 영판매 파일을 읽어 매출집계.xlsx 생성
+   - 오프라인/온라인 매출 분리
+
+3. expense_report.py
+   - 경비내역서, 공제건, 재고실사 파일을 읽어 경비지원및공제_집계.xlsx 생성
+   - POS환급 배분 계산
+
+4. sales_analysis.py
+   - 매출집계_분석.xlsx 생성
+   - 판매금액, 수금액(V+), 수금액(V-), 생산원가, 영업이익, 총경비, 순이익, 순이익율 산출
+
+5. amd_report.py
+   - 판매수수료작업시트_AMD.xlsx 생성
+   - 중간관리/본사지급/공제/기타공제 상세 정리
+
+6. arba_process.py
+   - 아르바이트_정산서.xlsx 생성
+   - 사원현황, 급여명세서, 월별근태를 사번 기준 병합
+
+7. sales_summary.py
+   - 판매수수료집계.xlsx 생성
+   - 템플릿 필요: 판매수수료집계_템플릿.xlsx
+
+8. transfer_report.py
+   - 중간관리판매수수료이체내역.xlsx 생성
+   - 템플릿 사용 안 함
+
+9. tax_invoice_report.py
+   - 세금계산서_YYYY-MM.xlsx 생성
+   - 템플릿 필요: 세금계산서출력_템플릿.xlsx
+
+10. history_update.py
+   - output/YYYY-MM/매출집계_분석.xlsx를 읽어 DB/월별손익DB.xlsx 업데이트
+   - 기준일/분기/반기/시즌/시즌연도 자동 계산
+
+11. history_report.py
+   - DB/월별손익DB.xlsx 기준 경영진 분석 보고서 생성
+   - 월별/분기별/시즌별/매장별 추이 분석
