@@ -152,4 +152,3 @@ def run(base_dir: Path = None):
 
 if __name__=='__main__':
     run(Path(__file__).parent)
-    input('\nEnter 키를 눌러 종료합니다...')

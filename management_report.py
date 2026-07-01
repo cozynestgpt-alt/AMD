@@ -272,53 +272,78 @@ def _autofit(ws, widths=None):
     ws.freeze_panes = 'A4'
 
 
+
 def add_dashboard(wb, rows, cur_year, cur_month, class_path=None):
+    """경영분석보고서 첫 화면.
+
+    V8 수정사항:
+    - 금액 행과 비율 행의 표시 형식을 분리합니다.
+    - 순이익 행이 퍼센트로 표시되는 문제를 수정합니다.
+    - 순이익율 행만 % 형식으로 표시합니다.
+    """
     ws = wb.create_sheet('Dashboard', 0)
     _title(ws, f'경영분석 Dashboard  {cur_year}년 1~{cur_month}월', 12)
     cur = sum_rows(rows_for_period(rows, cur_year, cur_month))
     prev = sum_rows(rows_for_period(rows, cur_year - 1, cur_month))
+
     headers = ['항목', f'{cur_year-1}', f'{cur_year}', '증감액', '증감률']
-    ws.append([]); ws.append(headers)
-    kpis = ['판매금액','수금액(V+)','생산원가(V-)','영업이익(V-)','총경비','순이익']
+    header_row = 4
+    first_data_row = 5
+    ws.append([])
+    ws.append(headers)
+
+    kpis = ['판매금액', '수금액(V+)', '생산원가(V-)', '영업이익(V-)', '총경비', '순이익']
     for m in kpis:
         diff = cur[m] - prev[m]
         rate = _pct(diff, prev[m])
         ws.append([m, _k(prev[m]), _k(cur[m]), _k(diff), rate])
-    ws.append(['순이익율', _vat_excl_rate(prev['순이익'], prev['판매금액']), _vat_excl_rate(cur['순이익'], cur['판매금액']), _vat_excl_rate(cur['순이익'], cur['판매금액']) - _vat_excl_rate(prev['순이익'], prev['판매금액']), None])
-    _apply_table_style(ws, 3, 1, 3 + len(kpis) + 1, 5)
-    _num_fmt(ws, f'B4:D{3+len(kpis)}')
-    _num_fmt(ws, f'B{4+len(kpis)}:D{4+len(kpis)}', pct=True)
-    _num_fmt(ws, f'E4:E{3+len(kpis)}', pct=True)
-    for r in range(4, 4+len(kpis)+1):
-        if isinstance(ws.cell(r,4).value, (int, float)) and ws.cell(r,4).value < 0:
-            ws.cell(r,4).font = Font(name='맑은 고딕', size=9, color=RED)
+
+    profit_rate_prev = _vat_excl_rate(prev['순이익'], prev['판매금액'])
+    profit_rate_cur = _vat_excl_rate(cur['순이익'], cur['판매금액'])
+    ws.append(['순이익율', profit_rate_prev, profit_rate_cur, profit_rate_cur - profit_rate_prev, None])
+
+    last_amount_row = first_data_row + len(kpis) - 1
+    profit_rate_row = last_amount_row + 1
+    _apply_table_style(ws, header_row, 1, profit_rate_row, 5)
+
+    # 금액 행: B~D는 천원 단위 정수 표시
+    _num_fmt(ws, f'B{first_data_row}:D{last_amount_row}')
+    # 순이익율 행: B~D만 % 표시
+    _num_fmt(ws, f'B{profit_rate_row}:D{profit_rate_row}', pct=True)
+    # 증감률 열: 금액 KPI 행만 % 표시
+    _num_fmt(ws, f'E{first_data_row}:E{last_amount_row}', pct=True)
+
+    for r in range(first_data_row, profit_rate_row + 1):
+        if isinstance(ws.cell(r, 4).value, (int, float)) and ws.cell(r, 4).value < 0:
+            ws.cell(r, 4).font = Font(name='맑은 고딕', size=9, color=RED)
+
     ws['G3'] = '자동 코멘트'
     ws['G3'].fill = PatternFill('solid', fgColor=NAVY)
     ws['G3'].font = Font(name='맑은 고딕', color=WHITE, bold=True)
+
     comments = []
     sales_diff = cur['판매금액'] - prev['판매금액']
     profit_diff = cur['순이익'] - prev['순이익']
     comments.append(f"매출은 전년동기 대비 {_k(sales_diff):,}천원 ({_pct(sales_diff, prev['판매금액']):.1%}) 변동했습니다.")
     comments.append(f"순이익은 전년동기 대비 {_k(profit_diff):,}천원 ({_pct(profit_diff, prev['순이익']):.1%}) 변동했습니다.")
-    comments.append(f"순이익율은 {_vat_excl_rate(cur['순이익'], cur['판매금액']):.1%}로 전년동기 대비 {(_vat_excl_rate(cur['순이익'], cur['판매금액'])-_vat_excl_rate(prev['순이익'], prev['판매금액'])):.1%}p 변동했습니다.")
+    comments.append(f"순이익율은 {profit_rate_cur:.1%}로 전년동기 대비 {(profit_rate_cur-profit_rate_prev):.1%}p 변동했습니다.")
     comments.append('상세 원인은 동일매장/신규매장/폐점매장/행사매장 분석 시트를 함께 확인하세요.')
     if class_path:
         comments.append(f'매장 구분 기준 파일: {class_path.name}')
+
     for i, txt in enumerate(comments, 4):
         ws.cell(i, 7, txt)
         ws.cell(i, 7).alignment = Alignment(wrap_text=True, vertical='top')
-    ws.merge_cells('G4:L4'); ws.merge_cells('G5:L5'); ws.merge_cells('G6:L6'); ws.merge_cells('G7:L7')
-    for r in range(4, 4 + len(comments)):
         try:
-            ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=12)
+            ws.merge_cells(start_row=i, start_column=7, end_row=i, end_column=12)
         except ValueError:
             pass
-        ws.row_dimensions[r].height = 32
+        ws.row_dimensions[i].height = 32
         for c in range(7, 13):
-            ws.cell(r,c).fill = PatternFill('solid', fgColor=LIGHT)
-            ws.cell(r,c).border = Border(left=BORDER,right=BORDER,top=BORDER,bottom=BORDER)
-    _autofit(ws, {'A':18,'B':14,'C':14,'D':14,'E':12,'G':26,'H':14,'I':14,'J':14,'K':14,'L':14})
+            ws.cell(i, c).fill = PatternFill('solid', fgColor=LIGHT)
+            ws.cell(i, c).border = Border(left=BORDER, right=BORDER, top=BORDER, bottom=BORDER)
 
+    _autofit(ws, {'A':18, 'B':14, 'C':14, 'D':14, 'E':12, 'G':26, 'H':14, 'I':14, 'J':14, 'K':14, 'L':14})
 
 def add_category_sheet(wb, rows, cur_year, cur_month, store_class, category, sheet_name):
     ws = wb.create_sheet(sheet_name)
@@ -631,4 +656,3 @@ def run(base_dir: Path = None):
 
 if __name__ == '__main__':
     run(Path(__file__).parent)
-    input('\nEnter 키를 눌러 종료합니다...')

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+~$*.xlsx
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db

@@ -19,6 +19,7 @@ from datetime import datetime
 from collections import defaultdict
 import calendar
 import sys
+from copy import copy
 
 try:
     import openpyxl
@@ -531,7 +532,9 @@ def make_year_compare_report(ym: str, base_dir: Path) -> Path:
         for row in ws.iter_rows():
             for cell in row:
                 if cell.value is not None:
-                    cell.alignment = cell.alignment.copy(vertical="center")
+                    align = copy(cell.alignment)
+                    align.vertical = "center"
+                    cell.alignment = align
         ws.freeze_panes = ws.freeze_panes or "A2"
 
     out_path = output_dir / "판매수수료_전년대비보고서.xlsx"
@@ -547,14 +550,87 @@ def make_year_compare_report(ym: str, base_dir: Path) -> Path:
     return out_path
 
 
+
 def run(ym: str, base_dir: Path | str = None) -> Path:
     base = Path(base_dir) if base_dir else Path(__file__).parent
     return make_year_compare_report(ym, base)
 
 
+
+def _find_latest_output_month(base_dir: Path) -> str:
+    """기준월을 자동으로 찾습니다.
+
+    1순위: output/YYYY-MM 형식의 최신 월 폴더
+    2순위: DB/월별손익DB.xlsx의 최신 년-월
+    """
+    output_dir = base_dir / "output"
+    months = []
+
+    if output_dir.exists():
+        for folder in output_dir.iterdir():
+            if not folder.is_dir():
+                continue
+            try:
+                datetime.strptime(folder.name, "%Y-%m")
+                months.append(folder.name)
+            except ValueError:
+                continue
+
+    if months:
+        return sorted(months)[-1]
+
+    # output 월별 폴더가 없으면 월별손익DB에서 최신 년-월을 찾습니다.
+    db_path = base_dir / "DB" / "월별손익DB.xlsx"
+    if not db_path.exists():
+        raise FileNotFoundError(f"기준월을 찾을 수 없습니다. output 월별 폴더와 DB 파일을 확인하세요: {db_path}")
+
+    wb = load_workbook(db_path, read_only=True, data_only=True)
+    ws = wb["년도별월별DB"] if "년도별월별DB" in wb.sheetnames else wb.active
+    headers = [str(v or "").strip() for v in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))]
+
+    ym_idx = headers.index("년-월") if "년-월" in headers else None
+    y_idx = headers.index("년") if "년" in headers else None
+    m_idx = headers.index("월") if "월" in headers else None
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        ym = None
+        if ym_idx is not None:
+            ym = row[ym_idx]
+        elif y_idx is not None and m_idx is not None:
+            y, m = row[y_idx], row[m_idx]
+            if y and m:
+                ym = f"{int(y)}-{int(str(m).replace('월','')):02d}"
+        if not ym:
+            continue
+        ym = str(ym).strip()
+        try:
+            datetime.strptime(ym, "%Y-%m")
+            months.append(ym)
+        except ValueError:
+            continue
+
+    if not months:
+        raise FileNotFoundError("output 폴더와 월별손익DB에서 YYYY-MM 형식의 기준월을 찾지 못했습니다.")
+
+    return sorted(set(months))[-1]
+
+
 if __name__ == "__main__":
-    ym = input("정산 월을 입력하세요 (예: 2026-05 또는 202605): ").strip()
-    if len(ym) == 6 and ym.isdigit():
-        ym = ym[:4] + "-" + ym[4:]
-    run(ym, Path(__file__).parent)
-    input("\nEnter 키를 눌러 종료합니다...")
+    base = Path(__file__).parent
+
+    if len(sys.argv) >= 2:
+        ym = sys.argv[1].strip()
+        if len(ym) == 6 and ym.isdigit():
+            ym = ym[:4] + "-" + ym[4:]
+    else:
+        ym = _find_latest_output_month(base)
+
+    print()
+    print("=" * 60)
+    print(" 전년대비보고서 생성")
+    print("=" * 60)
+    print(f" 기준월: {ym}")
+    print()
+    run(ym, base)
+    print()
+    print("전년대비보고서 생성 완료")

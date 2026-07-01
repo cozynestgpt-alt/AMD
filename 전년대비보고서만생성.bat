@@ -1,10 +1,24 @@
 @echo off
-chcp 65001 >nul
-title 판매수수료 전년대비보고서 생성
+chcp 65001 > nul
 cd /d "%~dp0"
-echo ==========================================
-echo   판매수수료 전년대비보고서 생성
-echo ==========================================
+
+echo ===============================================
+echo Year compare report only V8 Final Release
+echo ===============================================
 echo.
+
 python year_compare_report.py
+if errorlevel 1 goto ERROR
+
+echo.
+echo Year compare report has been created successfully.
+echo.
 pause
+exit /b 0
+
+:ERROR
+echo.
+echo ERROR occurred. Please check the message above.
+echo.
+pause
+exit /b 1
