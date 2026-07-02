@@ -1,0 +1,70 @@
+# AMD V8.0.1 Stable Configuration
+
+company:
+  name: "The Cozynest Company"
+  project_name: "AMD"
+  project_full_name: "Analysis & Management Dashboard"
+
+version:
+  current: "8.0.1-stable"
+  base_release: "8.0.0"
+
+paths:
+  input: "input"
+  output: "output"
+  backup: "backup"
+  db: "DB"
+  templates: "templates"
+  docs: "docs"
+  logs: "logs"
+
+database:
+  file_name: "월별손익DB.xlsx"
+  preserve_until: "2026-05"
+  update_from: "2026-06"
+  update_key:
+    - "년-월"
+    - "매장코드"
+
+report:
+  latest_month: "auto"
+  create_history_report: true
+  create_management_report: true
+  create_year_compare_report: true
+
+store_class:
+  enabled: true
+  pattern: "매장구분_행사_신규_폐점_YYYYMM.xlsx"
+  values:
+    - "동일"
+    - "신규"
+    - "폐점"
+    - "행사"
+
+kpi:
+  sales_amount_basis: "V+"
+  collection_rate: "수금액(V+) / 매출금액(V+)"
+  cost_multiple: "(매출금액(V+) / 1.1) / 생산원가(V-)"
+  expense_rate: "총경비(V-) / (매출금액(V+) / 1.1)"
+  operating_profit_rate: "영업이익(V-) / (매출금액(V+) / 1.1)"
+  net_profit_rate: "순이익(V-) / (매출금액(V+) / 1.1)"
+
+season:
+  SS:
+    start_month: 3
+    end_month: 8
+  FW:
+    start_month: 9
+    end_month: 2
+    january_february_belongs_to_previous_year: true
+
+quarter:
+  Q1: [1, 2, 3]
+  Q2: [4, 5, 6]
+  Q3: [7, 8, 9]
+  Q4: [10, 11, 12]
+
+execution:
+  pause_at_end: true
+  intermediate_pause: false
+  log_enabled: true

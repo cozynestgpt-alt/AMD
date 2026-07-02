@@ -1,0 +1,33 @@
+V8.0.1 Stable 적용 방법
+
+1. 이 ZIP을 압축 해제합니다.
+
+2. 아래 파일/폴더를 AMD 루트 폴더에 복사합니다.
+   - .gitignore
+   - config.yaml
+   - docs/CONFIG_POLICY.md
+   - input/.gitkeep
+   - output/.gitkeep
+   - backup/.gitkeep
+   - DB/.gitkeep
+
+3. 기존 input/output/backup/DB 폴더의 실제 엑셀 파일은 삭제하지 않아도 됩니다.
+   다만 GitHub 추적에서 제외해야 하므로, 아래 명령을 실행해야 합니다.
+
+4. GitHub Desktop에서:
+   Repository > Open in Command Prompt 또는 Open in Terminal 선택
+
+5. 아래 명령 실행:
+
+   git rm -r --cached input output backup DB
+   git add input/.gitkeep output/.gitkeep backup/.gitkeep DB/.gitkeep
+   git add .gitignore config.yaml docs/CONFIG_POLICY.md
+
+6. GitHub Desktop으로 돌아와 Commit 합니다.
+
+   Summary:
+   V8.0.1-005 Git 관리 정책 및 config 추가
+
+7. Push origin을 클릭합니다.
+
+8. 이후부터 input/output/backup/DB의 업무 데이터는 GitHub에 올라가지 않습니다.

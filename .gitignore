@@ -1,44 +1,54 @@
-# ==========================================
+#################################################
 # AMD Project
-# Git Ignore
-# ==========================================
+# Version: V8.0.1 Stable
+#################################################
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 
-# VS Code
+# IDE
 .vscode/
-
-# PyCharm
 .idea/
 
-# Windows
-Thumbs.db
-Desktop.ini
-
-# Python Virtual Environment
+# Virtual Environment
 .venv/
 venv/
 env/
 
-# Temporary files
-*.tmp
+# Windows / macOS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
 *.log
+
+# Temporary
+*.tmp
+*.bak
 
 # Excel temporary files
 ~$*.xlsx
 ~$*.xls
 
-# OS files
-.DS_Store
+#################################################
+# AMD Business Data
+# GitHub에는 프로그램/문서/템플릿만 관리하고,
+# 월별 입력자료, 산출물, 백업, 실제 DB는 올리지 않습니다.
+#################################################
 
-# ==========================================
-# Do NOT Ignore
-# ==========================================
+input/*.xlsx
+input/*.xls
 
-# input/
-# output/
-# DB/
-# templates/
+output/*
+!output/.gitkeep
+
+backup/*
+!backup/.gitkeep
+
+DB/*.xlsx
+DB/*.xls
+!DB/.gitkeep
+!DB/DB_TEMPLATE.xlsx
