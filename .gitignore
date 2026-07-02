@@ -1,7 +1,44 @@
+# ==========================================
+# AMD Project
+# Git Ignore
+# ==========================================
+
+# Python
 __pycache__/
-*.pyc
-~$*.xlsx
-*.tmp
-*.bak
-.DS_Store
+*.py[cod]
+*$py.class
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Windows
 Thumbs.db
+Desktop.ini
+
+# Python Virtual Environment
+.venv/
+venv/
+env/
+
+# Temporary files
+*.tmp
+*.log
+
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+
+# OS files
+.DS_Store
+
+# ==========================================
+# Do NOT Ignore
+# ==========================================
+
+# input/
+# output/
+# DB/
+# templates/
