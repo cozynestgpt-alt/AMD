@@ -1,0 +1,36 @@
+V8 Final Release 적용 파일
+========================
+
+이 압축파일에는 아래 수정본이 포함되어 있습니다.
+
+1. history_report.py
+   - 단독 실행 시 마지막 Enter 대기 제거
+
+2. management_report.py
+   - 단독 실행 시 마지막 Enter 대기 제거
+   - Dashboard에서 순이익 금액이 %로 표시되는 문제 수정
+   - 순이익율 행만 퍼센트 형식으로 표시되도록 수정
+
+3. year_compare_report.py
+   - 정산월 입력 제거
+   - output 폴더의 최신 YYYY-MM 월 폴더를 자동 인식
+   - 마지막 Enter 대기 제거
+   - openpyxl DeprecationWarning 일부 수정
+
+4. 보고서만생성.bat
+   - 보고서 3개를 순서대로 생성
+   - 중간에 Enter 없이 진행
+   - 마지막에만 pause 1회 실행
+
+적용 방법
+---------
+1. GitHub Desktop에서 Repository > Show in Explorer를 클릭합니다.
+2. 열린 AMD 폴더에 이 압축파일의 파일들을 덮어씁니다.
+3. 보고서만생성.bat를 실행합니다.
+4. 정상적으로 아래 3개 파일이 생성되는지 확인합니다.
+   - output/연도별_분기별_시즌별_손익분석.xlsx
+   - output/경영분석보고서.xlsx
+   - output/판매수수료_전년대비보고서.xlsx
+5. GitHub Desktop에서 Commit 메시지:
+   V8-003 Final Release 보고서 생성 안정화
+6. Commit 후 Push origin을 실행합니다.

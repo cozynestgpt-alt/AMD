@@ -1,0 +1,69 @@
+입력 파일 사용 현황 - salary_system V4
+======================================
+
+[고정/기준 입력 파일]
+
+1. input/사원마스터.xlsx
+   - 사용 위치: run.py, expense_report.py 등
+   - 용도: 매장명, 성명, 직급, 소득구분, 지급방법, 은행, 계좌, 기본수수료, 수수료율, 행사매장 비고
+   - 없을 경우: 실행 중단
+
+2. input/매장전화요금내역.xlsx
+   - 사용 위치: amd_report.py, run.py, sales_summary.py, transfer_report.py
+   - 용도: 중간관리 매장 전화요금 공제
+   - 없을 경우: 전화요금 0 처리
+
+3. input/중간관리매장_매입세금계산서_기재사항정보.xlsx
+   - 사용 위치: tax_invoice_report.py
+   - 용도: 세금계산서 공급자/거래처 기재사항
+   - 없을 경우: 세금계산서 생성 실패
+
+[매월 교체 입력 파일]
+
+1. input/영*판매*YYYYMM*.xlsx
+   - 사용 위치: run.py, sales_report.py, sales_analysis.py
+   - 용도: 오프라인/온라인 매출, 판매금액, 수금액(V+), 생산원가
+   - 없을 경우: 매출집계/매출분석 건너뜀 또는 매출 0 처리
+
+2. input/◈매장공제건 집계(YY년 MM월).xlsx 또는 *매장공제건*.xlsx
+   - 사용 위치: run.py, expense_report.py
+   - 용도: 덜받음, 임의사은품, POS공제, POS환급 배분
+   - 없을 경우: 공제 0 처리
+
+3. input/★YY년 MM월_경비내역서.xlsx 또는 *경비내역서*.xlsx
+   - 사용 위치: run.py, expense_report.py
+   - 용도: 직배비/경비 지원금
+   - 없을 경우: 직배비 0 처리
+
+4. input/YY년 MM월 재고실사 공제건 합계_수정.xlsx 또는 *재고실사*.xlsx
+   - 사용 위치: run.py, expense_report.py
+   - 용도: 유통하자/재고 LOSS
+   - 없을 경우: LOSS 0 처리
+
+5. input/사원현황_일용직_YYYYMM.xlsx 또는 사원현황*YYYYMM*.xlsx
+   - 사용 위치: arba_process.py
+   - 용도: 아르바이트 성명, 사번, 부서, 주민번호, 연락처
+   - 없을 경우: 아르바이트 정산서 건너뜀
+
+6. input/급여상여명세서_일용직_YYYYMM.xlsx
+   - 사용 위치: arba_process.py, amd_report.py, sales_summary.py, transfer_report.py
+   - 용도: 아르바이트 급여 및 세액공제
+
+7. input/급여상여명세서_매장직_YYYYMM.xlsx
+   - 사용 위치: amd_report.py, sales_summary.py, transfer_report.py
+   - 용도: 매장직 세액공제
+
+8. input/월별근태_일용직_YYYYMM.xlsx 또는 월별근태*YYYYMM*.xlsx
+   - 사용 위치: arba_process.py
+   - 용도: 아르바이트 근무일수
+
+9. input/*로젠*고객직배*.xlsx 또는 *고객직배*.xlsx
+   - 사용 위치: amd_report.py, sales_summary.py, transfer_report.py
+   - 용도: 직배비공제(V+)
+
+[사용하지 않는 입력 파일]
+
+1. input/월별입력_YYYY-MM.xlsx
+   - V4에서 사용하지 않습니다.
+   - 월별입력 관련 함수 load_monthly()도 호출되지 않습니다.
+

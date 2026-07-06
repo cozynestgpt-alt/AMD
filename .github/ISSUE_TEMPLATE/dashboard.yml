@@ -1,0 +1,45 @@
+name: Dashboard 개발
+description: Dashboard 화면 관련 기능 개발
+title: "[Dashboard] "
+labels:
+  - Dashboard
+
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 목적
+      placeholder: 목적을 입력하세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: work
+    attributes:
+      label: 작업 내용
+      placeholder: 작업 내용을 입력하세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 기준
+      placeholder: 완료 기준을 입력하세요.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      options:
+        - High
+        - Medium
+        - Low
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      value: V9.0
