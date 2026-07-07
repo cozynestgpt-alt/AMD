@@ -84,6 +84,12 @@ DELIVERY_FEE_EXCLUDE = {
     "신세계마산점",   # 직배비공제V+ 제외
 }
 
+# ── 로젠 파일 물품옵션(매장명) 약칭 → 정식 매장명 매핑 ────────
+# (직영점/거래처 표기는 원래 매칭 대상이 아니므로 여기 넣지 않음)
+DELIVERY_NAME_MAP = {
+    "현대울산": "현대울산점",
+}
+
 # ── 전화요금 B열 약칭 → 정식 매장명 ──────────────────────────
 PHONE_NAME_MAP = {
     "롯데관악":"롯데관악점","롯데광주":"롯데광주점","롯데포항":"롯데포항점",
@@ -163,8 +169,10 @@ def load_phone_fee(path: Path, ym: str) -> dict:
     return data
 
 def load_delivery_fee(path: Path) -> dict:
-    """로젠 고객직배 → {매장명: 신용합계×1.1} (중간관리 매장만)
-    운송장번호가 있는 행만 집계 — 없는 행은 소계행이므로 제외
+    """로젠 고객직배 → {매장명: (신용+제주운임/산간료)합계×1.1}
+    - 운송장번호가 있는 행만 집계 (없는 행 = 소계행 → 제외)
+    - 집배구분="요청반품" & 물품명에 "입금완료" 포함 → 이미 정산된 반품건이므로 제외
+    - 중간관리 매장 필터링은 호출부에서 처리 (mgr_shops 체크)
     컬럼 위치는 매달 바뀔 수 있어 헤더 행에서 실제 위치를 찾아 사용"""
     if not path or not path.exists(): return {}
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -181,20 +189,36 @@ def load_delivery_fee(path: Path) -> dict:
             break
     if not header:
         return {}
-    idx = {name: i for i, name in enumerate(header)}
-    try:
-        i_track, i_shop, i_credit = idx["운송장번호"], idx["물품옵션"], idx["신용"]
-    except KeyError:
+
+    def find_col(*keywords):
+        for i, h in enumerate(header):
+            if h and all(k in str(h) for k in keywords):
+                return i
+        return None
+
+    i_cat    = find_col("집배구분")
+    i_track  = find_col("운송장번호")
+    i_shop   = find_col("물품옵션")
+    i_item   = find_col("물품명")
+    i_credit = find_col("신용")
+    i_jeju   = find_col("제주")
+    if None in (i_cat, i_track, i_shop, i_item, i_credit, i_jeju):
         return {}
 
     data = defaultdict(int)
     for row in rows_iter:
         운송장 = row[i_track]
+        if not 운송장: continue                                  # 소계행 제외
+        cat  = row[i_cat]
+        item = str(row[i_item] or "")
+        if cat == "요청반품" and "입금완료" in item: continue        # 정산완료 반품건 제외
+
         shop   = str(row[i_shop] or "").strip()
-        amt    = row[i_credit]
-        # 운송장번호 없는 행 = 소계행 → 제외
-        if not 운송장: continue
-        if shop and isinstance(amt, (int,float)):
+        shop   = DELIVERY_NAME_MAP.get(shop, shop)
+        credit = row[i_credit] if isinstance(row[i_credit], (int, float)) else 0
+        jeju   = row[i_jeju]   if isinstance(row[i_jeju],   (int, float)) else 0
+        amt = credit + jeju
+        if shop and amt:
             data[shop] += int(amt)
     # ×1.1 적용
     return {shop: round(total * 1.1) for shop, total in data.items()
