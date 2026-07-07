@@ -7,13 +7,6 @@ echo DB update only V8 Final Release
 echo ===============================================
 echo.
 
-if exist requirements.txt (
-    echo Installing Python dependencies...
-    python -m pip install -r requirements.txt --quiet
-    if errorlevel 1 goto ERROR
-    echo.
-)
-
 python history_update.py
 if errorlevel 1 goto ERROR
 

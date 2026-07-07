@@ -875,4 +875,4 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
     finally:
-        pass
+        input("\n  Enter 키를 눌러 종료합니다...")
