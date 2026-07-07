@@ -291,7 +291,9 @@ def make_sales_analysis(ym: str, base_dir: Path,
             off_pf_v = sv_m.get("off_pf", 0)   # 오프라인 판매금액
             on_pf_v  = sv_m.get("on_pf",  0)   # 온라인 판매금액
             # 매니저 합산: 오프+온 합산 후 10원 미만 올림 (run.py calc()의 commission 산식과 동일 방식)
-            mgr = math.ceil((off_pf_v * mr["rate_off"] + on_pf_v * mr["rate_on"]) / 10) * 10
+            # round()로 부동소수점 오차 제거 후 ceil 적용 (예: 20194580.000000004 방지)
+            combined = round(off_pf_v * mr["rate_off"] + on_pf_v * mr["rate_on"])
+            mgr = math.ceil(combined / 10) * 10
             # J/K열 오프·온 분해(표시용, 원 미만 반올림) — 합산은 위 mgr을 그대로 사용
             mgr_off_val = round(off_pf_v * mr["rate_off"])
             mgr_on_val  = round(on_pf_v  * mr["rate_on"])

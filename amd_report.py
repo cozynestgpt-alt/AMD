@@ -164,18 +164,34 @@ def load_phone_fee(path: Path, ym: str) -> dict:
 
 def load_delivery_fee(path: Path) -> dict:
     """로젠 고객직배 → {매장명: 신용합계×1.1} (중간관리 매장만)
-    C열(운송장번호)이 있는 행만 집계 — 운송장번호 없는 행은 소계행이므로 제외"""
+    운송장번호가 있는 행만 집계 — 없는 행은 소계행이므로 제외
+    컬럼 위치는 매달 바뀔 수 있어 헤더 행에서 실제 위치를 찾아 사용"""
     if not path or not path.exists(): return {}
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     # "로젠택배▶" 포함 시트 탐지
     sheet = next((s for s in wb.sheetnames if "로젠택배" in s), None)
     if not sheet: return {}
     ws = wb[sheet]
+
+    rows_iter = ws.iter_rows(values_only=True)
+    header = None
+    for row in rows_iter:
+        if row and "운송장번호" in row:
+            header = row
+            break
+    if not header:
+        return {}
+    idx = {name: i for i, name in enumerate(header)}
+    try:
+        i_track, i_shop, i_credit = idx["운송장번호"], idx["물품옵션"], idx["신용"]
+    except KeyError:
+        return {}
+
     data = defaultdict(int)
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        운송장 = row[2]                       # C열(idx2) = 운송장번호
-        shop   = str(row[4] or "").strip()   # E열(idx4) = 물품옵션(매장명)
-        amt    = row[5]                       # F열(idx5) = 신용
+    for row in rows_iter:
+        운송장 = row[i_track]
+        shop   = str(row[i_shop] or "").strip()
+        amt    = row[i_credit]
         # 운송장번호 없는 행 = 소계행 → 제외
         if not 운송장: continue
         if shop and isinstance(amt, (int,float)):

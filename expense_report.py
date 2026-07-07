@@ -44,6 +44,13 @@ INV_NAME_MAP = {
     "롯데대구":      "롯데대구점",
     "롯데이천아울렛":"롯데아울렛이천점",
     "롯데김해아울렛":"롯데아울렛김해점",
+    "신세계대구":    "신세계대구점",
+    "신세계대전":    "신세계대전점",
+    "신세계광주":    "신세계광주점",
+    "롯데창원":      "롯데창원점",
+    "AK수원":        "AK프라자수원점",
+    "롯데아울렛이천":"롯데아울렛이천점",   # "롯데이천아울렛"과 어순이 다른 변형
+    "롯데아울렛김해":"롯데아울렛김해점",   # "롯데김해아울렛"과 어순이 다른 변형
 }
 
 FMT = "#,##0"
@@ -76,13 +83,16 @@ def _find(patterns):
         if found: return found[0]
     return None
 
-def load_expense(path: Path) -> dict:
-    """경비내역서 → {매장명: 직배비합계}  (26년 5월경비 시트)"""
+def load_expense(path: Path, ym: str) -> dict:
+    """경비내역서 → {매장명: 직배비합계}  (해당 처리월의 'N월경비' 시트)"""
     if not path or not path.exists():
         return {}
     xl = pd.ExcelFile(path)
-    sheet = next((s for s in xl.sheet_names if "5월" in s and "경비" in s),
-                 xl.sheet_names[0])
+    month_str = f"{int(ym[5:])}월"
+    sheet = next((s for s in xl.sheet_names if month_str in s and "경비" in s), None)
+    if not sheet:
+        print(f"     ⚠️  경비내역서에서 '{month_str}' 시트를 찾지 못해 직배비 계산을 건너뜁니다. (시트 목록: {xl.sheet_names})")
+        return {}
     df = pd.read_excel(path, sheet_name=sheet, header=None)
     data = {}
     for r in range(3, len(df)):
@@ -163,7 +173,7 @@ def make_expense_report(ym: str, base_dir: Path, master: list) -> Path:
     print(f"     공제건집계:  {ded_path.name if ded_path else '없음 → 0처리'}")
     print(f"     재고실사:    {inv_path.name if inv_path else '없음 → 0처리'}")
 
-    exp_data = load_expense(exp_path)
+    exp_data = load_expense(exp_path, ym)
     ded_data = load_deduction_detail(ded_path)
     inv_data = load_inventory(inv_path)
 
