@@ -310,9 +310,8 @@ def make_sales_analysis(ym: str, base_dir: Path,
         exp   = expense_data.get(shop,0)        # 경비
         total_exp = labor + exp                 # 총경비
         profit    = op - total_exp              # 순이익
-        sales_vminus = pf / 1.1 if pf else 0
-        profit_r  = profit/sales_vminus if sales_vminus else 0      # 순이익율: V- 기준
-        exp_r     = total_exp/sales_vminus if sales_vminus else 0   # 경비율: V- 기준
+        profit_r  = profit/op if op else 0      # 순이익율: 영업이익(V-) 기준
+        exp_r     = total_exp/op if op else 0   # 경비율: 영업이익(V-) 기준
 
         row = ei + 5
         rb  = AMBER if 구분=="중간관리" else (WHITE if ei%2==0 else GRAY2)
