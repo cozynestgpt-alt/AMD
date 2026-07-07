@@ -13,7 +13,6 @@
   로젠_고객직배*.xlsx     → 직배비공제(V+) (중간관리만, F열×1.1)
 """
 
-import math
 import sys
 from pathlib import Path
 from collections import defaultdict
@@ -328,6 +327,8 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
                         if r["emp"].get("grade","")=="매니저"
                         and r["emp"].get("pay_type","")=="중간관리")
 
+        판매수수료합계 = 본사M + 본사S1 + 중간관리수수료   # H = SUM(E:G)
+
         직배비경비  = er.get("j_direct", 0)
         아르바이트비 = arba_data.get(shop, 0)
         덜받음   = er.get("shortfall", 0)
@@ -335,23 +336,22 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
         POS공제  = er.get("pos", 0)
         POS환급  = er.get("t_refund", 0)
         LOSS    = er.get("loss", 0)
-        공제계   = 덜받음 + 사은품 + POS공제 - POS환급 + LOSS
 
-        # 공급가액 = 매장 전체 판매수수료(10원올림) + 직배비 - 공제 (아르바이트 제외)
-        shop_total_fee = sum(_pay(r) for r in emps)
-        _fee_ceil = math.ceil(shop_total_fee / 10) * 10
-        공급가액  = _fee_ceil + 직배비경비 - 공제계
+        # 공급가액 = SUM(H:J) - SUM(K:M,O) + N
+        #        = (판매수수료합계+직배비경비+아르바이트비) - (덜받음+임의사은품+POS정정공제+유통LOSS) + POS정정환급금
+        공급가액  = (판매수수료합계 + 직배비경비 + 아르바이트비) \
+                  - (덜받음 + 사은품 + POS공제 + LOSS) + POS환급
         # 부가세 = 공급가액 × 10% (사업소득자 매장만)
         is_biz = any(r["emp"]["income"]=="사업소득" for r in emps)
         부가세   = int(공급가액 * 0.1) if is_biz else 0
-        지급할총액 = 공급가액 + 부가세
+        지급할총액 = 공급가액 + 부가세   # R = SUM(P:Q)
 
         is_mgr_shop = shop in mgr_shops
         전화요금공제 = phone_data.get(shop, 0) if is_mgr_shop else 0
         세액공제   = tax_data.get(shop, 0) if not is_mgr_shop else 0   # 본사지급 매장만
         직배비공제vp = deliv_data.get(shop, 0) if is_mgr_shop else 0
-        공제합계   = 전화요금공제 + 세액공제 + 직배비공제vp
-        송금액 = 지급할총액 - 공제합계
+        기타공제합계 = 전화요금공제 + 세액공제 + 직배비공제vp   # V = SUM(S:U)
+        송금액 = 지급할총액 - 기타공제합계                        # W = R - V
 
         store_rows.append({
             "매장코드":   code,
@@ -363,18 +363,18 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
             "중간관리수수료": 중간관리수수료,
             "직배비+경비": 직배비경비,
             "아르바이트비": 아르바이트비,
-            "①공급가액":  공급가액,
-            "②부가세":   부가세,
-            "③지급할총액": 지급할총액,
             "덜받음":    덜받음,
             "임의사은품지급": 사은품,
             "POS정정요청공제": POS공제,
             "POS정정요청공제환급금": POS환급,
             "유통하자/재고LOSS": LOSS,
+            "①공급가액":  공급가액,
+            "②부가세":   부가세,
+            "③지급할총액": 지급할총액,
             "전화요금공제": 전화요금공제,
             "세액공제(별도)": 세액공제,
             "직배비공제(V+)": 직배비공제vp,
-            "ⓕ공제합계":  공제합계,
+            "ⓕ기타공제합계": 기타공제합계,
             "ⓗ송금액":   송금액,
         })
 
@@ -383,7 +383,7 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
     GREEN="1E6B3C"; GRAY="F2F2F2"; AMBER="FFF2CC"; RED="C00000"
     FMT="#,##0"
 
-    # (key, header, align, number_format, width) — 매장 단위 판매수수료작업시트(AMD)
+    # (key, header, align, number_format, width) — 판매수수료작업시트_AMD_템플릿.xlsx 컬럼 순서 반영
     # 열너비는 억 단위 합계(예: 3,624,908,030)도 잘리지 않도록 넉넉히 지정
     ITEMS=[
         ("매장코드","매장\n코드","center",None,9),
@@ -396,26 +396,34 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
         ("판매수수료합계","판매수수료\n합계","center",FMT,16),
         ("직배비+경비","직배비+경비","center",FMT,14),
         ("아르바이트비","아르바이트비","center",FMT,14),
-        ("①공급가액","①공급가액","center",FMT,16),
-        ("②부가세","②부가세","center",FMT,14),
-        ("③지급할총액","③지급할\n총액","center",FMT,16),
         ("덜받음","덜받음","center",FMT,12),
         ("임의사은품지급","임의사은품\n지급","center",FMT,13),
         ("POS정정요청공제","POS정정\n요청공제","center",FMT,13),
         ("POS정정요청공제환급금","POS정정\n환급금","center",FMT,13),
         ("유통하자/재고LOSS","유통하자\n/LOSS","center",FMT,13),
+        ("①공급가액","①공급가액","center",FMT,16),
+        ("②부가세","②부가세","center",FMT,14),
+        ("③지급할총액","③지급할\n총액","center",FMT,16),
         ("전화요금공제","전화요금\n공제","center",FMT,13),
         ("세액공제(별도)","세액공제\n(별도)","center",FMT,13),
         ("직배비공제(V+)","직배비공제\n(V+)","center",FMT,13),
-        ("ⓕ공제합계","ⓕ공제합계","center",FMT,14),
+        ("ⓕ기타공제합계","ⓕ기타공제합계","center",FMT,14),
         ("ⓗ송금액","ⓗ송금액","center",FMT,16),
     ]
     GROUPS=[
         (1,3,"기본정보",NAVY),(4,4,"매출",BLUE),(5,8,"수수료",BLUE),
-        (9,10,"지원금","375623"),(11,13,"지급금액","4472C4"),
-        (14,22,"공제항목",RED),(23,23,"송금액","276221"),
+        (9,10,"지원금","375623"),(11,15,"공제항목",RED),
+        (16,18,"지급금액","4472C4"),(19,22,"기타공제","AA5B1E"),
+        (23,23,"송금액","276221"),
     ]
-    HCOL = 8   # "판매수수료합계" 열 (=SUM(E:G) 수식으로 채움)
+    # 열 문자 기준 Excel 수식 (판매수수료작업시트_AMD_템플릿.xlsx 그대로)
+    FORMULA_COLS = {
+        8:  "=SUM(E{r}:G{r})",
+        16: "=SUM(H{r}:J{r})-SUM(K{r}:M{r},O{r})+N{r}",
+        18: "=SUM(P{r}:Q{r})",
+        22: "=SUM(S{r}:U{r})",
+        23: "=R{r}-V{r}",
+    }
 
     wb = openpyxl.Workbook(); ws = wb.active
     ws.title="판매수수료작업시트(AMD)"
@@ -470,9 +478,8 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
                 else:
                     bg="C6EFCE"; fg="276221"; bold=True
 
-            if ci==HCOL:
-                # 판매수수료합계 = 본사-M+본사-S1+중간관리수수료 (Excel 수식)
-                v = f"=SUM(E{row}:G{row})"
+            if ci in FORMULA_COLS:
+                v = FORMULA_COLS[ci].format(r=row)
             else:
                 v=p.get(key)
                 if v is None: v=0 if fmt else ""
@@ -495,8 +502,13 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
         col = get_column_letter(ci)
         bg="C6EFCE" if key=="ⓗ송금액" else ("E2EFDA" if key=="③지급할총액" else NAVY)
         fg="276221" if key=="ⓗ송금액" else WHITE
-        # 합계도 전부 SUM 수식으로 (수동 수정 시 자동 재계산되도록)
-        c=ws.cell(sr,ci,f"=SUM({col}{first_row}:{col}{sr-1})")
+        # 합계행: 수식 열은 합계행 자기 자신을 참조하는 동일 수식(연쇄 계산),
+        # 나머지는 데이터 행 전체를 SUM
+        if ci in FORMULA_COLS:
+            v = FORMULA_COLS[ci].format(r=sr)
+        else:
+            v = f"=SUM({col}{first_row}:{col}{sr-1})"
+        c=ws.cell(sr,ci,v)
         c.font=Font(name="맑은 고딕",bold=True,color=fg,size=10)
         c.fill=PatternFill("solid",fgColor=bg); c.number_format=FMT
         c.alignment=Alignment(horizontal="center",vertical="center")
