@@ -87,13 +87,26 @@ def _ym_to_year_month(ym: str) -> tuple[int, int]:
 
 def _find_store_class_file(input_dir: Path, ym: str) -> Path | None:
     compact = ym.replace("-", "")
-    pats = [
+    # scoped: 연월(compact)이 포함되어 다른 달과 안 겹침 → 최상위 우선, 없으면
+    #         input/이전/까지 재귀 탐색 (과거 달 재조회 지원)
+    scoped = [
         f"매장구분_행사_신규_폐점_{compact}.xlsx",
         f"*매장구분*{compact}*.xlsx",
+    ]
+    # loose: 연월 정보 없는 느슨한 패턴 → 최상위에서만, scoped가 전부 실패했을 때 최후 수단
+    loose = [
         "*매장구분*행사*신규*폐점*.xlsx",
         "*매장구분*.xlsx",
     ]
-    for pat in pats:
+    for pat in scoped:
+        found = sorted(input_dir.glob(pat))
+        if found:
+            return found[0]
+    for pat in scoped:
+        found = sorted(input_dir.rglob(pat))
+        if found:
+            return found[0]
+    for pat in loose:
         found = sorted(input_dir.glob(pat))
         if found:
             return found[0]

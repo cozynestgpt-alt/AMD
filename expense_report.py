@@ -159,15 +159,36 @@ def make_expense_report(ym: str, base_dir: Path, master: list) -> Path:
     OUTPUT.mkdir(parents=True, exist_ok=True)
 
     # ── 소스 파일 탐지 ───────────────────────────────────────
-    def find_in(patterns):
-        for pat in patterns:
-            found = list(INPUT.glob(pat))
+    # scoped: 연+월을 동시에 요구하는 패턴(다른 달과 안 겹침) → input/ 최상위 우선,
+    #         없으면 input/이전/ 등 하위 폴더까지 재귀 탐색 (과거 달 재조회 지원)
+    # loose : 연/월 정보 없는 느슨한 패턴 → 최상위에서만, scoped가 전부 실패했을 때 최후 수단
+    def find_in(scoped, loose=()):
+        for pat in scoped:
+            found = sorted(INPUT.glob(pat))
+            if found: return found[0]
+        for pat in scoped:
+            found = sorted(INPUT.rglob(pat))
+            if found: return found[0]
+        for pat in loose:
+            found = sorted(INPUT.glob(pat))
             if found: return found[0]
         return None
 
-    exp_path = find_in(["★*경비내역서*.xlsx", "*경비내역서*.xlsx"])
-    ded_path = find_in(["◈*매장공제건*.xlsx", "*매장공제건*.xlsx", "◈*.xlsx"])
-    inv_path = find_in(["*재고실사*공제건*합계*.xlsx", "*재고실사*.xlsx"])
+    _yy, _mm_pad = ym[2:4], ym[5:]
+    _mm_bare = str(int(_mm_pad))
+
+    exp_path = find_in(
+        [f"★*{_yy}년*{_mm_pad}월*경비내역서*.xlsx", f"★*{_yy}년*{_mm_bare}월*경비내역서*.xlsx",
+         f"*{_yy}년*{_mm_pad}월*경비내역서*.xlsx", f"*{_yy}년*{_mm_bare}월*경비내역서*.xlsx"],
+        ["★*경비내역서*.xlsx", "*경비내역서*.xlsx"])
+    ded_path = find_in(
+        [f"◈*매장공제건*{_yy}년*{_mm_pad}월*.xlsx", f"◈*매장공제건*{_yy}년*{_mm_bare}월*.xlsx",
+         f"*매장공제건*{_yy}년*{_mm_pad}월*.xlsx", f"*매장공제건*{_yy}년*{_mm_bare}월*.xlsx"],
+        ["◈*매장공제건*.xlsx", "*매장공제건*.xlsx", "◈*.xlsx"])
+    inv_path = find_in(
+        [f"*{_yy}년*{_mm_pad}월*재고실사*공제건*합계*.xlsx", f"*{_yy}년*{_mm_bare}월*재고실사*공제건*합계*.xlsx",
+         f"*{_yy}년*{_mm_pad}월*재고실사*.xlsx", f"*{_yy}년*{_mm_bare}월*재고실사*.xlsx"],
+        ["*재고실사*공제건*합계*.xlsx", "*재고실사*.xlsx"])
 
     print(f"     직배비 파일: {exp_path.name if exp_path else '없음 → 0처리'}")
     print(f"     공제건집계:  {ded_path.name if ded_path else '없음 → 0처리'}")

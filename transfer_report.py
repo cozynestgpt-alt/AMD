@@ -40,16 +40,36 @@ def make_transfer_report(ym: str, base_dir: Path,
     OUTPUT.mkdir(parents=True, exist_ok=True)
 
     # ── 보조 데이터 로드 ──────────────────────────────────────
+    # scoped: 연월(ym_compact)/연+월을 동시에 요구하는 패턴(다른 달과 안 겹침)
+    #         → input/ 최상위 우선, 없으면 input/이전/까지 재귀 탐색 (과거 달 재조회 지원)
+    # loose : 연월 정보 없는 느슨한 패턴 → 최상위에서만, scoped가 전부 실패했을 때 최후 수단
+    def _find_in(scoped, loose=()):
+        for pat in scoped:
+            found = sorted(INPUT.glob(pat))
+            if found: return found[0]
+        for pat in scoped:
+            found = sorted(INPUT.rglob(pat))
+            if found: return found[0]
+        for pat in loose:
+            found = sorted(INPUT.glob(pat))
+            if found: return found[0]
+        return None
+
+    _ym_compact = ym.replace("-", "")
+    _yy, _mm_pad = ym[2:4], ym[5:]
+    _mm_bare = str(int(_mm_pad))
+
     try:
         from amd_report import (load_phone_fee, load_tax_deduction,
                                 load_delivery_fee, load_arba_subtotals)
         from expense_report import STORE_CODE_MAP
-        phone_path = next(iter(INPUT.glob("매장전화요금내역.xlsx")), None) or \
-                     next(iter(INPUT.glob("*전화요금*.xlsx")), None)
-        tax_paths  = [next(iter(INPUT.glob("급여상여명세서_일용직*.xlsx")), None),
-                      next(iter(INPUT.glob("급여상여명세서_매장직*.xlsx")), None)]
-        deliv_path = next(iter(INPUT.glob("*로젠*고객직배*.xlsx")), None) or \
-                     next(iter(INPUT.glob("*고객직배*.xlsx")), None)
+        phone_path = _find_in([], ["매장전화요금내역.xlsx", "*전화요금*.xlsx"])
+        tax_paths  = [_find_in([f"급여상여명세서_일용직*{_ym_compact}*.xlsx"], ["급여상여명세서_일용직*.xlsx"]),
+                      _find_in([f"급여상여명세서_매장직*{_ym_compact}*.xlsx"], ["급여상여명세서_매장직*.xlsx"])]
+        deliv_path = _find_in(
+            [f"*{_yy}.{_mm_pad}월*로젠*고객직배*.xlsx", f"*{_yy}.{_mm_bare}월*로젠*고객직배*.xlsx",
+             f"*{_yy}.{_mm_pad}월*고객직배*.xlsx", f"*{_yy}.{_mm_bare}월*고객직배*.xlsx"],
+            ["*로젠*고객직배*.xlsx", "*고객직배*.xlsx"])
         arba_path  = OUTPUT / "아르바이트_정산서.xlsx"
         phone_data = load_phone_fee(phone_path, ym) if phone_path else {}
         tax_data   = load_tax_deduction(tax_paths)

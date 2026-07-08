@@ -812,10 +812,15 @@ def run(ym: str, base_dir: Path):
     OUTPUT = base_dir / "output" / ym
 
     # 파일 경로 — 파일명에 '일용직' 포함 여부 무관하게 glob 검색
+    # (패턴에 ymc(연월 전체)가 포함되어 다른 달과 겹치지 않음 → input/ 최상위 우선,
+    #  없으면 input/이전/ 등 하위 폴더까지 재귀 탐색해 과거 달 재조회를 지원한다)
     ymc = ym.replace("-", "")
     def _find(patterns):
         for pat in patterns:
-            found = list(INPUT.glob(pat))
+            found = sorted(INPUT.glob(pat))
+            if found: return found[0]
+        for pat in patterns:
+            found = sorted(INPUT.rglob(pat))
             if found: return found[0]
         return None
 
