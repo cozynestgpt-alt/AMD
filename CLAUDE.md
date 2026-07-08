@@ -40,9 +40,20 @@
   직배비공제 3가지 규칙, 롯데아울렛서울역점 누락 등 총 7건 수정 완료 (2026-07-08).
 
 ## 보고서 생성 스크립트 목록
-- amd_report.py, arba_process.py, common.py, expense_report.py, management_report.py,
-  run.py, sales_analysis.py, sales_report.py, sales_summary.py, tax_invoice_report.py,
-  year_compare_report.py
+- `run.py`: 전체 파이프라인 진입점. 정산 월(YYYY-MM) 입력받아 아래 스크립트들을 순차 실행
+- `common.py`: 공통 스타일/색상/매장코드 매핑 모듈 (다른 스크립트들이 import)
+- `amd_report.py`: 판매수수료작업시트(AMD) 생성 → `output/판매수수료작업시트_AMD.xlsx`
+- `arba_process.py`: 아르바이트 급여 자동 취합 → `output/YYYY-MM/아르바이트_정산서.xlsx`
+- `expense_report.py`: 경비지원 및 공제 집계 보고서 → `output/경비지원및공제_집계.xlsx`
+- `sales_report.py`: 매장별 매출집계 보고서 → `output/YYYY-MM/매출집계.xlsx`
+- `sales_analysis.py`: 매출집계(분석) 보고서 → `output/YYYY-MM/매출집계_분석.xlsx`
+- `sales_summary.py`: 판매수수료집계 보고서 → `output/판매수수료집계.xlsx`
+- `transfer_report.py`: 중간관리 판매수수료 이체내역 → `output/중간관리판매수수료이체내역.xlsx`
+- `tax_invoice_report.py`: 세금계산서 출력 → `output/세금계산서_YYYYMM.xlsx`
+- `management_report.py`: 경영분석보고서 생성 → `output/경영분석보고서.xlsx`
+- `year_compare_report.py`: 전년대비 판매수수료/손익 보고서 → `output/판매수수료_전년대비보고서.xlsx`
+- `history_report.py`: 월별손익DB 기준 연도/분기/시즌 분석 보고서 → `output/연도별_분기별_시즌별_손익분석.xlsx`
+- `history_update.py`: `DB/월별손익DB.xlsx` 업데이트 (2026-06부터 매출집계_분석.xlsx 자료 반영)
 - 출력 파일은 output/ 폴더에 생성됨 (.gitignore로 git 추적 제외)
 
 ## 작업 스타일
