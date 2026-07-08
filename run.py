@@ -868,11 +868,16 @@ def main():
     print(f"     출력 폴더: {out_dir}")
 
 if __name__ == "__main__":
+    _exit_code = 0
     try:
         main()
+    except SystemExit as e:
+        _exit_code = e.code if isinstance(e.code, int) else 1
     except Exception as e:
         print(f"\n  ❌ 예상치 못한 오류가 발생했습니다: {e}")
         import traceback
         traceback.print_exc()
+        _exit_code = 1
     finally:
         input("\n  Enter 키를 눌러 종료합니다...")
+    sys.exit(_exit_code)
