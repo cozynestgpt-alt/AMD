@@ -39,8 +39,8 @@ Desktop.ini
 # 월별 입력자료, 산출물, 백업, 실제 DB는 올리지 않습니다.
 #################################################
 
-input/*.xlsx
-input/*.xls
+input/**/*.xlsx
+input/**/*.xls
 
 output/*
 !output/.gitkeep
