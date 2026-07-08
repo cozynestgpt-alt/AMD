@@ -432,16 +432,15 @@ def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
     ws4.freeze_panes = "A3"
 
     # ── 구분 분류 함수 ──────────────────────────────────────
-    JIKYOUNG_DEPTS = {"청주점", "현대아울렛가든파이브점", "AK광명점"}
-
-    def get_category(dept: str) -> str:
-        """부서명 → 구분(백화점/직영점/미입점행사)"""
-        if not dept:
-            return "백화점"
-        d = dept.strip()
-        if d in JIKYOUNG_DEPTS or d.startswith("NC"):
+    def get_category(store: str, dept: str = "") -> str:
+        """매핑된 매장명(우선) 또는 원본 부서명(dept) → 구분(백화점/직영점/미입점행사)"""
+        s = (store or "").strip()
+        if s.endswith("(직영점)"):
             return "직영점"
-        if d.startswith("ET_"):
+        if s.endswith("(미입점행사)"):
+            return "미입점행사"
+        # DEPT_TO_STORE에 아직 등록 안 된 신규 미입점행사 매장 대비 폴백
+        if (dept or "").strip().startswith("ET_"):
             return "미입점행사"
         return "백화점"
 
@@ -492,7 +491,7 @@ def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
     for r in results:
         dept  = r["dept"]
         store = r["store"] or r["dept"]
-        cat   = get_category(dept)
+        cat   = get_category(store, dept)
         cat_store[cat][store].append(r)
 
     tk = Side(style="medium"); tn = Side(style="thin")
@@ -675,7 +674,7 @@ def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
 
     # ── 보험료 집계 테이블 ─────────────────────────────────
     # 구분별로 보험료 합산
-    # 전체목록 시트에서 부서(D열)·고용보험(J열)·의료보험(K열)·국민연금(L열)·실지급액(N열)·총지급액(I열) 읽기
+    # 전체목록 시트에서 매장명(C열)·부서명원본(D열)·고용보험(J열)·의료보험(K열)·국민연금(L열)·실지급액(N열)·총지급액(I열) 읽기
     ws_all = wb["전체목록"]
     ins_totals = {cat: {"emp":0, "health":0, "pension":0, "real":0, "total":0}
                   for cat in CAT_ORDER}
@@ -684,8 +683,9 @@ def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
         no_val = ws_all.cell(dr, 1).value
         if not no_val or not isinstance(no_val, (int, float)):
             continue
+        store_v  = ws_all.cell(dr, 3).value or ""
         dept_v   = ws_all.cell(dr, 4).value or ""
-        cat_v    = get_category(str(dept_v))
+        cat_v    = get_category(str(store_v), str(dept_v))
         emp_v    = ws_all.cell(dr, 10).value or 0   # 고용보험
         health_v = ws_all.cell(dr, 11).value or 0   # 의료보험
         pen_v    = ws_all.cell(dr, 12).value or 0   # 국민연금

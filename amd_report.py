@@ -13,7 +13,6 @@
   로젠_고객직배*.xlsx     → 직배비공제(V+) (중간관리만, F열×1.1)
 """
 
-import math
 import sys
 from pathlib import Path
 from collections import defaultdict
@@ -28,6 +27,8 @@ except ImportError:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
+
+from common import STORE_CODE_MAP
 
 # ── 부서명 → 매장명 매핑 (세액공제용) ─────────────────────────
 DEPT_TO_STORE = {
@@ -56,7 +57,7 @@ DEPT_TO_STORE = {
     "고양점(롯데아울렛)":"롯데아울렛고양점","광교점(롯데아울렛)":"롯데아울렛광교점",
     "광명점(롯데아울렛)":"롯데아울렛광명점","군산점(롯데아울렛)":"롯데아울렛군산점",
     "동부산점(롯데아울렛)":"롯데아울렛동부산점","이천점(롯데아울렛)":"롯데아울렛이천점",
-    "김해점(롯데아울렛)":"롯데아울렛김해점",
+    "김해점(롯데아울렛)":"롯데아울렛김해점","롯데아울렛서울역점":"롯데아울렛서울역점",
     "현대대전점(아울렛)":"현대아울렛대전점","현대남양주점(아울렛)":"현대아울렛남양주점",
     "신세계본점":"신세계본점",
     # ── 직영점 (판매수수료 대상 아님) ──────────────────────────
@@ -82,6 +83,12 @@ DELIVERY_FEE_EXCLUDE = {
     "롯데창원점",    # 직배비공제V+ 제외
     "롯데대구점",    # 직배비공제V+ 제외
     "신세계마산점",   # 직배비공제V+ 제외
+}
+
+# ── 로젠 파일 물품옵션(매장명) 약칭 → 정식 매장명 매핑 ────────
+# (직영점/거래처 표기는 원래 매칭 대상이 아니므로 여기 넣지 않음)
+DELIVERY_NAME_MAP = {
+    "현대울산": "현대울산점",
 }
 
 # ── 전화요금 B열 약칭 → 정식 매장명 ──────────────────────────
@@ -121,15 +128,25 @@ PHONE_NAME_MAP = {
 # 소스 데이터 로더
 # ══════════════════════════════════════════════════════════
 def load_tax_deduction(paths: list) -> dict:
-    """일용직+매장직 급여명세서 → {매장명: 세액공제합계}"""
+    """일용직+매장직 급여명세서 → {매장명: 세액공제합계}
+    두 파일은 컬럼 배치가 서로 달라 헤더에서 "부서"/"공제총액" 위치를 파일별로 찾아 사용"""
     data = defaultdict(int)
     for path in paths:
         if not path or not path.exists(): continue
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
         ws = wb.active
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            dept = str(row[3] or "").strip()
-            tax  = row[10]   # 11열(idx10) = 공제총액
+        rows_iter = ws.iter_rows(values_only=True)
+        header = next(rows_iter, None)
+        if not header:
+            continue
+        try:
+            i_dept = header.index("부서")
+            i_tax  = header.index("공제총액")
+        except ValueError:
+            continue
+        for row in rows_iter:
+            dept = str(row[i_dept] or "").strip()
+            tax  = row[i_tax]
             if dept and isinstance(tax, (int,float)) and tax:
                 shop = DEPT_TO_STORE.get(dept)
                 if shop:
@@ -163,22 +180,56 @@ def load_phone_fee(path: Path, ym: str) -> dict:
     return data
 
 def load_delivery_fee(path: Path) -> dict:
-    """로젠 고객직배 → {매장명: 신용합계×1.1} (중간관리 매장만)
-    C열(운송장번호)이 있는 행만 집계 — 운송장번호 없는 행은 소계행이므로 제외"""
+    """로젠 고객직배 → {매장명: (신용+제주운임/산간료)합계×1.1}
+    - 운송장번호가 있는 행만 집계 (없는 행 = 소계행 → 제외)
+    - 집배구분="요청반품" & 물품명에 "입금완료" 포함 → 이미 정산된 반품건이므로 제외
+    - 중간관리 매장 필터링은 호출부에서 처리 (mgr_shops 체크)
+    컬럼 위치는 매달 바뀔 수 있어 헤더 행에서 실제 위치를 찾아 사용"""
     if not path or not path.exists(): return {}
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     # "로젠택배▶" 포함 시트 탐지
     sheet = next((s for s in wb.sheetnames if "로젠택배" in s), None)
     if not sheet: return {}
     ws = wb[sheet]
+
+    rows_iter = ws.iter_rows(values_only=True)
+    header = None
+    for row in rows_iter:
+        if row and "운송장번호" in row:
+            header = row
+            break
+    if not header:
+        return {}
+
+    def find_col(*keywords):
+        for i, h in enumerate(header):
+            if h and all(k in str(h) for k in keywords):
+                return i
+        return None
+
+    i_cat    = find_col("집배구분")
+    i_track  = find_col("운송장번호")
+    i_shop   = find_col("물품옵션")
+    i_item   = find_col("물품명")
+    i_credit = find_col("신용")
+    i_jeju   = find_col("제주")
+    if None in (i_cat, i_track, i_shop, i_item, i_credit, i_jeju):
+        return {}
+
     data = defaultdict(int)
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        운송장 = row[2]                       # C열(idx2) = 운송장번호
-        shop   = str(row[4] or "").strip()   # E열(idx4) = 물품옵션(매장명)
-        amt    = row[5]                       # F열(idx5) = 신용
-        # 운송장번호 없는 행 = 소계행 → 제외
-        if not 운송장: continue
-        if shop and isinstance(amt, (int,float)):
+    for row in rows_iter:
+        운송장 = row[i_track]
+        if not 운송장: continue                                  # 소계행 제외
+        cat  = row[i_cat]
+        item = str(row[i_item] or "")
+        if cat == "요청반품" and "입금완료" in item: continue        # 정산완료 반품건 제외
+
+        shop   = str(row[i_shop] or "").strip()
+        shop   = DELIVERY_NAME_MAP.get(shop, shop)
+        credit = row[i_credit] if isinstance(row[i_credit], (int, float)) else 0
+        jeju   = row[i_jeju]   if isinstance(row[i_jeju],   (int, float)) else 0
+        amt = credit + jeju
+        if shop and amt:
             data[shop] += int(amt)
     # ×1.1 적용
     return {shop: round(total * 1.1) for shop, total in data.items()
@@ -245,115 +296,85 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
     mgr_shops = {e["shop"] for e in master
                  if (e.get("pay_type","") or "") == "중간관리"}
 
-    # 사원마스터에서 calc 결과 병합: emp당 1행
-    # results = [{"emp":{...},"res":{...}}]
-    # 매장+성명 조합으로 유일 행 구성
-    # 매장별 전체 수수료 합산 (대표 사원 행에 집계)
-    shop_total_fee = defaultdict(int)   # {shop: 전체사원 판매수수료합계}
-    shop_total_vat = defaultdict(int)   # {shop: 전체사원 부가세합계}
+    # 매장별 사원(results) 목록
+    shop_emps = defaultdict(list)   # {shop: [r, ...]}
     for r in results:
-        emp, res = r["emp"], r["res"]
-        if not emp["name"]: continue
-        shop = emp["shop"]
-        shop_total_fee[shop] += emp.get("base_fee",0) + res.get("commission",0)
-        shop_total_vat[shop] += res.get("vat",0)
+        if not r["emp"]["name"]: continue
+        shop_emps[r["emp"]["shop"]].append(r)
 
-    # 매장별 대표 사원 판단 (중간관리=매니저, 본사지급=본사-M)
-    shop_repr = {}  # {shop: emp}
-    for r in results:
-        emp = r["emp"]
-        if not emp["name"]: continue
-        shop = emp["shop"]
-        grade = emp.get("grade","")
-        pay_type = emp.get("pay_type","")
-        if shop not in shop_repr:
-            shop_repr[shop] = r
-        else:
-            prev = shop_repr[shop]["emp"]
-            # 매니저 또는 본사-M 우선
-            if grade in ("매니저","본사-M"):
-                shop_repr[shop] = r
-
-    person_rows = []
-    processed_shops = set()
-    for r in results:
-        emp, res = r["emp"], r["res"]
-        if not emp["name"]: continue
-        shop = emp["shop"]
-        is_repr = (shop_repr.get(shop) is r)   # 대표 사원 여부
+    # ── 매장별 1행 집계 ──────────────────────────────────
+    store_rows = []
+    for shop, code in sorted(STORE_CODE_MAP.items(), key=lambda x: x[1]):
+        emps = shop_emps.get(shop, [])
         er   = (expense_rows or {}).get(shop, {})
         sd   = (sales_detail or {}).get(shop, {})
 
-        # 매출 (대표 사원만 표시)
-        off_n = sd.get("off_normal", 0) if is_repr else 0
-        off_e = sd.get("off_event",  0) if is_repr else 0
-        on_n  = sd.get("on_normal",  0) if is_repr else 0
-        on_e  = sd.get("on_event",   0) if is_repr else 0
-        정상매출 = off_n + on_n
-        행사매출 = off_e + on_e
-        매출합계 = 정상매출 + 행사매출
+        # 대표자 이름: 매니저(중간관리) 우선, 없으면 본사-M
+        대표자 = next((r["emp"]["name"] for r in emps
+                     if r["emp"].get("grade","")=="매니저"), "")
+        if not 대표자:
+            대표자 = next((r["emp"]["name"] for r in emps
+                         if r["emp"].get("grade","")=="본사-M"), "")
 
-        # 수수료: 개인 기본+추가
-        기본수수료    = emp.get("base_fee", 0)
-        추가지급수수료  = res.get("commission", 0)
-        판매수수료합계  = 기본수수료 + 추가지급수수료
+        매출합계 = sd.get("grand_total", 0)
 
-        # 지원금/공제/경비는 대표 사원 행에만 집계
-        if is_repr:
-            직배비경비  = er.get("j_direct", 0)
-            아르바이트비 = arba_data.get(shop, 0)
-            덜받음   = er.get("shortfall", 0)
-            사은품   = er.get("gift", 0)
-            POS공제  = er.get("pos", 0)
-            POS환급  = er.get("t_refund", 0)
-            LOSS    = er.get("loss", 0)
-            공제계   = 덜받음 + 사은품 + POS공제 - POS환급 + LOSS
-            # 공급가액 = 매니저수수료(10원올림) + 직배비 - 공제 (아르바이트 제외)
-            # 공급가액 공식: + 매니저수수료 + 지원금(직배비·경비)
-            #               - 덜받음 - 사은품 - POS공제 + POS환급 - LOSS
-            _fee_ceil = math.ceil(shop_total_fee[shop] / 10) * 10
-            공급가액  = _fee_ceil + 직배비경비 - 공제계
-            # 부가세 = 공급가액 × 10% (사업소득자 매장만, 10원 미만 올림 전 기준)
-            is_biz = any(r["emp"]["income"]=="사업소득"
-                        for r in results if r["emp"]["shop"]==shop and r["emp"]["name"])
-            부가세   = int(공급가액 * 0.1) if is_biz else 0
-            지급할총액 = 공급가액 + 부가세
-            전화요금공제 = phone_data.get(shop, 0) if shop in mgr_shops else 0
-            세액공제   = tax_data.get(shop, 0)
-            직배비공제vp = deliv_data.get(shop, 0) if shop in mgr_shops else 0
-            공제합계   = 전화요금공제 + 세액공제 + 직배비공제vp
-            송금액 = 지급할총액 - 공제합계
-        else:
-            직배비경비=0; 아르바이트비=0; 덜받음=0; 사은품=0
-            POS공제=0; POS환급=0; LOSS=0; 공제계=0
-            공급가액=0; 부가세=0; 지급할총액=0
-            전화요금공제=0; 세액공제=0; 직배비공제vp=0; 공제합계=0; 송금액=0
+        def _pay(r):
+            return r["emp"].get("base_fee",0) + r["res"].get("commission",0)
 
-        pay_type = emp.get("pay_type", "")
-        person_rows.append({
+        본사M  = sum(_pay(r) for r in emps if r["emp"].get("grade","")=="본사-M")
+        본사S1 = sum(_pay(r) for r in emps if r["emp"].get("grade","")=="본사-S1")
+        중간관리수수료 = sum(_pay(r) for r in emps
+                        if r["emp"].get("grade","")=="매니저"
+                        and r["emp"].get("pay_type","")=="중간관리")
+
+        판매수수료합계 = 본사M + 본사S1 + 중간관리수수료   # H = SUM(E:G)
+
+        직배비경비  = er.get("j_direct", 0)
+        아르바이트비 = arba_data.get(shop, 0)
+        덜받음   = er.get("shortfall", 0)
+        사은품   = er.get("gift", 0)
+        POS공제  = er.get("pos", 0)
+        POS환급  = er.get("t_refund", 0)
+        LOSS    = er.get("loss", 0)
+
+        # 공급가액 = SUM(H:J) - SUM(K:M,O) + N
+        #        = (판매수수료합계+직배비경비+아르바이트비) - (덜받음+임의사은품+POS정정공제+유통LOSS) + POS정정환급금
+        공급가액  = (판매수수료합계 + 직배비경비 + 아르바이트비) \
+                  - (덜받음 + 사은품 + POS공제 + LOSS) + POS환급
+        # 부가세 = 공급가액 × 10% (사업소득자 매장만)
+        is_biz = any(r["emp"]["income"]=="사업소득" for r in emps)
+        부가세   = int(공급가액 * 0.1) if is_biz else 0
+        지급할총액 = 공급가액 + 부가세   # R = SUM(P:Q)
+
+        is_mgr_shop = shop in mgr_shops
+        전화요금공제 = phone_data.get(shop, 0) if is_mgr_shop else 0
+        세액공제   = tax_data.get(shop, 0) if not is_mgr_shop else 0   # 본사지급 매장만
+        직배비공제vp = deliv_data.get(shop, 0) if is_mgr_shop else 0
+        기타공제합계 = 전화요금공제 + 세액공제 + 직배비공제vp   # V = SUM(S:U)
+        송금액 = 지급할총액 - 기타공제합계                        # W = R - V
+
+        store_rows.append({
+            "매장코드":   code,
             "매장명":     shop,
-            "성명":      emp["name"],
-            "지급방법":   pay_type,
-            "정상매출":   정상매출,
-            "행사매출":   행사매출,
+            "매니저":     대표자,
             "매출합계":   매출합계,
-            "기본수수료":  기본수수료,
-            "추가지급수수료": 추가지급수수료,
-            "판매수수료합계": 판매수수료합계,
+            "본사-M":    본사M,
+            "본사-S1":   본사S1,
+            "중간관리수수료": 중간관리수수료,
             "직배비+경비": 직배비경비,
             "아르바이트비": 아르바이트비,
-            "①공급가액":  공급가액,
-            "②부가세":   부가세,
-            "③지급할총액": 지급할총액,
             "덜받음":    덜받음,
             "임의사은품지급": 사은품,
             "POS정정요청공제": POS공제,
             "POS정정요청공제환급금": POS환급,
             "유통하자/재고LOSS": LOSS,
+            "①공급가액":  공급가액,
+            "②부가세":   부가세,
+            "③지급할총액": 지급할총액,
             "전화요금공제": 전화요금공제,
             "세액공제(별도)": 세액공제,
             "직배비공제(V+)": 직배비공제vp,
-            "ⓕ공제합계":  공제합계,
+            "ⓕ기타공제합계": 기타공제합계,
             "ⓗ송금액":   송금액,
         })
 
@@ -362,41 +383,51 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
     GREEN="1E6B3C"; GRAY="F2F2F2"; AMBER="FFF2CC"; RED="C00000"
     FMT="#,##0"
 
+    # (key, header, align, number_format, width) — 판매수수료작업시트_AMD_템플릿.xlsx 컬럼 순서 반영
+    # 열너비는 억 단위 합계(예: 3,624,908,030)도 잘리지 않도록 넉넉히 지정
     ITEMS=[
-        ("매장명","매장명","left",None,22),
-        ("성명","성명","center",None,8),
-        ("지급방법","지급방법","center",None,8),
-        ("정상매출","정상매출","center",FMT,12),
-        ("행사매출","행사매출","center",FMT,12),
-        ("매출합계","매출합계","center",FMT,12),
-        ("기본수수료","기본수수료","center",FMT,12),
-        ("추가지급수수료","추가지급\n수수료","center",FMT,10),
-        ("판매수수료합계","판매수수료\n합계","center",FMT,12),
-        ("직배비+경비","직배비+경비","center",FMT,10),
-        ("아르바이트비","아르바이트비","center",FMT,10),
-        ("①공급가액","①공급가액","center",FMT,12),
-        ("②부가세","②부가세","center",FMT,10),
-        ("③지급할총액","③지급할\n총액","center",FMT,12),
-        ("덜받음","덜받음","center",FMT,10),
-        ("임의사은품지급","임의사은품\n지급","center",FMT,10),
-        ("POS정정요청공제","POS정정\n요청공제","center",FMT,10),
-        ("POS정정요청공제환급금","POS정정\n환급금","center",FMT,10),
-        ("유통하자/재고LOSS","유통하자\n/LOSS","center",FMT,10),
-        ("전화요금공제","전화요금\n공제","center",FMT,10),
-        ("세액공제(별도)","세액공제\n(별도)","center",FMT,10),
-        ("직배비공제(V+)","직배비공제\n(V+)","center",FMT,10),
-        ("ⓕ공제합계","ⓕ공제합계","center",FMT,10),
-        ("ⓗ송금액","ⓗ송금액","center",FMT,12),
+        ("매장코드","매장\n코드","center",None,9),
+        ("매장명","매장명","left",None,20),
+        ("매니저","매니저","center",None,10),
+        ("매출합계","매출합계","center",FMT,17),
+        ("본사-M","본사-M","center",FMT,14),
+        ("본사-S1","본사-S1","center",FMT,14),
+        ("중간관리수수료","중간관리\n수수료","center",FMT,14),
+        ("판매수수료합계","판매수수료\n합계","center",FMT,16),
+        ("직배비+경비","직배비+경비","center",FMT,14),
+        ("아르바이트비","아르바이트비","center",FMT,14),
+        ("덜받음","덜받음","center",FMT,12),
+        ("임의사은품지급","임의사은품\n지급","center",FMT,13),
+        ("POS정정요청공제","POS정정\n요청공제","center",FMT,13),
+        ("POS정정요청공제환급금","POS정정\n환급금","center",FMT,13),
+        ("유통하자/재고LOSS","유통하자\n/LOSS","center",FMT,13),
+        ("①공급가액","①공급가액","center",FMT,16),
+        ("②부가세","②부가세","center",FMT,14),
+        ("③지급할총액","③지급할\n총액","center",FMT,16),
+        ("전화요금공제","전화요금\n공제","center",FMT,13),
+        ("세액공제(별도)","세액공제\n(별도)","center",FMT,13),
+        ("직배비공제(V+)","직배비공제\n(V+)","center",FMT,13),
+        ("ⓕ기타공제합계","ⓕ기타공제합계","center",FMT,14),
+        ("ⓗ송금액","ⓗ송금액","center",FMT,16),
     ]
     GROUPS=[
-        (1,3,"기본정보",NAVY),(4,6,"매출",BLUE),(7,9,"수수료",BLUE),
-        (10,11,"지원금","375623"),(12,14,"지급금액","4472C4"),
-        (15,23,"공제항목",RED),(24,24,"송금액","276221"),
+        (1,3,"기본정보",NAVY),(4,4,"매출",BLUE),(5,8,"수수료",BLUE),
+        (9,10,"지원금","375623"),(11,15,"공제항목",RED),
+        (16,18,"지급금액","4472C4"),(19,22,"기타공제","AA5B1E"),
+        (23,23,"송금액","276221"),
     ]
+    # 열 문자 기준 Excel 수식 (판매수수료작업시트_AMD_템플릿.xlsx 그대로)
+    FORMULA_COLS = {
+        8:  "=SUM(E{r}:G{r})",
+        16: "=SUM(H{r}:J{r})-SUM(K{r}:M{r},O{r})+N{r}",
+        18: "=SUM(P{r}:Q{r})",
+        22: "=SUM(S{r}:U{r})",
+        23: "=R{r}-V{r}",
+    }
 
     wb = openpyxl.Workbook(); ws = wb.active
     ws.title="판매수수료작업시트(AMD)"
-    ws.sheet_view.showGridLines=False; ws.freeze_panes="D3"
+    ws.sheet_view.showGridLines=False; ws.freeze_panes="D4"
 
     def st(r,c,v=None,bg=None,fg="000000",bold=False,size=9,
            align="center",wrap=False,fmt=None):
@@ -432,51 +463,52 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
         st(3,ci,hdr,bg=bg,fg=WHITE,bold=True,size=8,wrap=True)
     ws.row_dimensions[3].height=30
 
-    prev_shop=""; bg_toggle=False
-    for ei,p in enumerate(person_rows):
+    for ei,p in enumerate(store_rows):
         row=ei+4
-        shop=str(p.get("매장명") or "")
-        pay=str(p.get("지급방법") or "")
         송금액=p.get("ⓗ송금액") or 0
-        if shop!=prev_shop:
-            bg_toggle=not bg_toggle if prev_shop else False
-            prev_shop=shop
-        rb=WHITE if not bg_toggle else GRAY
+        rb=WHITE if ei%2==0 else GRAY
 
         for ci,(key,hdr,align,fmt,w) in enumerate(ITEMS,1):
-            v=p.get(key)
-            if v is None: v=0 if fmt else ""
             bg=rb; fg="000000"; bold=False
 
-            if key=="지급방법":
-                if pay=="중간관리": bg=AMBER; fg="7F4F00"; bold=True
-                elif pay=="본사지급": bg=PALE; fg=NAVY
-            elif key=="③지급할총액": bg="E2EFDA"; bold=True
+            if key=="③지급할총액": bg="E2EFDA"; bold=True
             elif key=="ⓗ송금액":
                 if isinstance(송금액,(int,float)) and 송금액<0:
                     bg="FFE0E0"; fg=RED; bold=True
                 else:
                     bg="C6EFCE"; fg="276221"; bold=True
 
-            if isinstance(v,(int,float)) and v<0 and key not in ("ⓗ송금액","③지급할총액"):
-                fg=RED
+            if ci in FORMULA_COLS:
+                v = FORMULA_COLS[ci].format(r=row)
+            else:
+                v=p.get(key)
+                if v is None: v=0 if fmt else ""
+                if isinstance(v,(int,float)) and v<0 and key not in ("ⓗ송금액","③지급할총액"):
+                    fg=RED
 
             c=ws.cell(row,ci,v)
             c.font=Font(name="맑은 고딕",bold=bold,color=fg,size=9)
             c.fill=PatternFill("solid",fgColor=bg)
             c.alignment=Alignment(horizontal=align,vertical="center")
-            if fmt and isinstance(v,(int,float)): c.number_format=fmt
+            if fmt: c.number_format=fmt
         ws.row_dimensions[row].height=17
 
-    sr=len(person_rows)+4
+    first_row = 4
+    sr = len(store_rows) + 4
     ws.merge_cells(f"A{sr}:C{sr}")
-    st(sr,1,f"합  계  ({len(person_rows)}명)",bg=NAVY,fg=WHITE,bold=True,size=10)
+    st(sr,1,f"합  계  ({len(store_rows)}개 매장)",bg=NAVY,fg=WHITE,bold=True,size=10)
     for ci,(key,hdr,align,fmt,w) in enumerate(ITEMS,1):
         if not fmt: continue
-        total=sum((p.get(key) or 0) for p in person_rows if isinstance(p.get(key),(int,float)))
+        col = get_column_letter(ci)
         bg="C6EFCE" if key=="ⓗ송금액" else ("E2EFDA" if key=="③지급할총액" else NAVY)
         fg="276221" if key=="ⓗ송금액" else WHITE
-        c=ws.cell(sr,ci,total)
+        # 합계행: 수식 열은 합계행 자기 자신을 참조하는 동일 수식(연쇄 계산),
+        # 나머지는 데이터 행 전체를 SUM
+        if ci in FORMULA_COLS:
+            v = FORMULA_COLS[ci].format(r=sr)
+        else:
+            v = f"=SUM({col}{first_row}:{col}{sr-1})"
+        c=ws.cell(sr,ci,v)
         c.font=Font(name="맑은 고딕",bold=True,color=fg,size=10)
         c.fill=PatternFill("solid",fgColor=bg); c.number_format=FMT
         c.alignment=Alignment(horizontal="center",vertical="center")
@@ -485,16 +517,16 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
 
     out_path = OUTPUT / "판매수수료작업시트_AMD.xlsx"
     wb.save(out_path)
-    return out_path
+    return out_path, len(store_rows)
 
 
 def run(ym: str, base_dir: Path, results: list,
         sales_detail: dict, expense_rows: dict, master: list):
     print(f"  📋 판매수수료작업시트(AMD) 처리 중...")
     try:
-        path = make_amd_report(ym, base_dir, results,
+        path, cnt = make_amd_report(ym, base_dir, results,
                                sales_detail, expense_rows, master)
-        print(f"     ✅ 판매수수료작업시트_AMD.xlsx  ({sum(1 for r in results if r['emp']['name'])}명)")
+        print(f"     ✅ 판매수수료작업시트_AMD.xlsx  ({cnt}개 매장)")
         return path
     except Exception as e:
         print(f"     ⚠️  AMD 처리 오류: {e}")

@@ -66,14 +66,32 @@ def make_sales_summary(ym: str, base_dir: Path,
         deliv_path  = next(iter(INPUT.glob("*로젠*고객직배*.xlsx")), None) or \
                       next(iter(INPUT.glob("*고객직배*.xlsx")), None)
         arba_path   = OUTPUT / "아르바이트_정산서.xlsx"
-
-        phone_data  = load_phone_fee(phone_path, ym) if phone_path else {}
-        tax_data    = load_tax_deduction(tax_paths)
-        deliv_data  = load_delivery_fee(deliv_path) if deliv_path else {}
-        arba_data   = load_arba_subtotals(arba_path)
     except Exception as e:
-        print(f"     ⚠️  보조 데이터 로드 오류: {e}")
-        phone_data = {}; tax_data = {}; deliv_data = {}; arba_data = {}
+        print(f"     ⚠️  보조 데이터 파일 탐색 오류: {e}")
+        phone_path = deliv_path = None
+        tax_paths  = []
+        arba_path  = OUTPUT / "아르바이트_정산서.xlsx"
+
+    try:
+        phone_data = load_phone_fee(phone_path, ym) if phone_path else {}
+    except Exception as e:
+        print(f"     ⚠️  전화요금 데이터 로드 오류: {e}")
+        phone_data = {}
+    try:
+        tax_data = load_tax_deduction(tax_paths)
+    except Exception as e:
+        print(f"     ⚠️  세액공제 데이터 로드 오류: {e}")
+        tax_data = {}
+    try:
+        deliv_data = load_delivery_fee(deliv_path) if deliv_path else {}
+    except Exception as e:
+        print(f"     ⚠️  직배비 데이터 로드 오류: {e}")
+        deliv_data = {}
+    try:
+        arba_data = load_arba_subtotals(arba_path)
+    except Exception as e:
+        print(f"     ⚠️  아르바이트 데이터 로드 오류: {e}")
+        arba_data = {}
 
     mgr_shops = {e["shop"] for e in master if e.get("pay_type","") == "중간관리"}
 
@@ -108,7 +126,7 @@ def make_sales_summary(ym: str, base_dir: Path,
     # 공급가액
     공급가액 = 수수료합계 + 직배비합계 - 공제합계 + 아르바이트합계
 
-    # 부가세: 매장별 공급가액 × 10% (사업소득 매장만)
+    # 부가세: 매장별 공급가액 × 10% (중간관리 + 사업소득 매장만, 세금계산서 발행 대상과 동일 조건)
     # 공급가액(매장별) = 수수료(10원올림) + 직배비 - 공제
     # → AMD와 동일한 방식으로 계산
     import math as _math2
@@ -123,7 +141,7 @@ def make_sales_summary(ym: str, base_dir: Path,
             _shop_income[_e["shop"]] = _e["income"]
     부가세합계 = 0
     for _shop, _inc in _shop_income.items():
-        if _inc != "사업소득": continue
+        if _inc != "사업소득" or _shop not in mgr_shops: continue
         _er = expense_rows.get(_shop, {})
         _fee_c = _math2.ceil(_shop_fee[_shop] / 10) * 10
         _공제 = (_er.get("shortfall",0)+_er.get("gift",0)+_er.get("pos",0)
@@ -192,15 +210,14 @@ def make_sales_summary(ym: str, base_dir: Path,
     import math as _math
     from collections import defaultdict as _dd
     from expense_report import STORE_CODE_MAP as _SCM3
-    from amd_report import (load_phone_fee as _lpf, load_tax_deduction as _ltd,
-                            load_delivery_fee as _ldf2, load_arba_subtotals as _las)
 
-    _phone  = _lpf(phone_path, ym) if phone_path else {}
-    _tax    = _ltd(tax_paths)
-    _deliv  = _ldf2(deliv_path) if deliv_path else {}
-    _arba2  = _las(arba_path)
+    # 위에서 이미 로드한 데이터 재사용 (중복 로드 방지)
+    _phone  = phone_data
+    _tax    = tax_data
+    _deliv  = deliv_data
+    _arba2  = arba_data
     _results_map = {r["emp"]["shop"]: r for r in results if r["emp"]["name"]}
-    _mgr_shops2  = {e["shop"] for e in master if e.get("pay_type","")=="중간관리"}
+    _mgr_shops2  = mgr_shops
     _event2      = {e["shop"] for e in master if (e.get("note","") or "").strip()=="행사매장"}
 
     shop_송금  = _dd(int)
@@ -223,10 +240,10 @@ def make_sales_summary(ym: str, base_dir: Path,
         공제계_s = (er_shop.get("shortfall",0)+er_shop.get("gift",0)
                     +er_shop.get("pos",0)-er_shop.get("t_refund",0)+er_shop.get("loss",0))
         공급가액_s = mgr_fee_s + j_dir - 공제계_s
-        # 부가세: 사업소득 매장만 (근로소득 매장은 0)
+        # 부가세: 중간관리 + 사업소득 매장만 (세금계산서 발행 대상과 동일 조건)
         _shop_inc = next((rr["emp"]["income"] for rr in results
                           if rr["emp"]["shop"]==shop and rr["emp"]["name"]), "")
-        부가세_s   = int(공급가액_s * 0.1) if _shop_inc == "사업소득" else 0
+        부가세_s   = int(공급가액_s * 0.1) if (_shop_inc == "사업소득" and shop in _mgr_shops2) else 0
         지급할총액_s= 공급가액_s + 부가세_s
         tel   = _phone.get(shop,0) if shop in _mgr_shops2 else 0
         deli  = _deliv.get(shop,0) if shop in _mgr_shops2 else 0

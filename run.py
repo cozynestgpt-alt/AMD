@@ -167,9 +167,9 @@ def calc(emp: dict, sales: dict, ded: dict = None) -> dict:
     # 수수료 계산: 오프+온 합산 후 10원 미만 올림
     if rate_off > 0:
         import math as _math
-        commission = _math.ceil(
-            (off_sales * rate_off + on_sales * rate_on) / 10
-        ) * 10
+        # round()로 부동소수점 오차 제거 후 ceil 적용 (예: 20194580.000000004 방지)
+        combined = round(off_sales * rate_off + on_sales * rate_on)
+        commission = _math.ceil(combined / 10) * 10
     else:
         commission = 0
 
@@ -666,7 +666,7 @@ def main():
     try:
         from expense_report import (load_expense as _le, load_deduction_detail as _ldd,
                                     load_inventory as _linv, STORE_CODE_MAP as _scm)
-        _exp_d = _le(exp_path)
+        _exp_d = _le(exp_path, ym)
         _ded_d = _ldd(deduct_path)
         _inv_path2 = next(iter(INPUT.glob("*재고실사*공제건*합계*.xlsx")),None) or                      next(iter(INPUT.glob("*재고실사*.xlsx")),None)
         _inv_d = _linv(_inv_path2) if _inv_path2 else {}
@@ -777,7 +777,7 @@ def main():
             _pu_val = _pu   # try 성공 시에만 갱신
             _exp_map = {}
             for _shop in _SCM.keys():
-                _d=_ded.get(_shop,{}); _j=load_expense(exp_path).get(_shop,0) if exp_path else 0
+                _d=_ded.get(_shop,{}); _j=load_expense(exp_path, ym).get(_shop,0) if exp_path else 0
                 _l=_d.get("shortfall",0); _n=_inv.get(_shop,0)
                 _o=_d.get("gift",0); _s=_d.get("pos",0)
                 _t=_pu if _s==0 and _shop not in _event else 0
