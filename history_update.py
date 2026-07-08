@@ -120,21 +120,6 @@ def update_history(ym: str, base_dir: Path = None, analysis_path: Path = None, d
     # 2026년 6월부터 salary_system의 output/년월/매출집계_분석.xlsx 자료로 월별 DB를 업데이트합니다.
     if ym <= '2026-05' and not force:
         print(f'ℹ️ {ym}은 기존 DB 보존 대상입니다. DB 업데이트를 건너뜁니다. (2026-06부터 자동 업데이트)')
-        try:
-            from history_report import run as report_run
-            report_run(base_dir)
-            try:
-                from management_report import run as mgmt_report_run
-                mgmt_report_run(base_dir)
-            except Exception as e:
-                print(f'⚠️ 경영분석보고서 생성 오류: {e}')
-            try:
-                from year_compare_report import run as year_compare_run
-                year_compare_run(ym, base_dir)
-            except Exception as e:
-                print(f'⚠️ 전년대비보고서 생성 오류: {e}')
-        except Exception as e:
-            print(f'⚠️ 연도별/분기/시즌 보고서 생성 오류: {e}')
         return {'db_path': str(base_dir/'DB'/'월별손익DB.xlsx'), 'backup_path': '', 'updated_month': ym, 'rows': 0, 'skipped': True}
     analysis_path = Path(analysis_path or base_dir/'output'/ym/'매출집계_분석.xlsx')
     db_path = Path(db_path or base_dir/'DB'/'월별손익DB.xlsx')
