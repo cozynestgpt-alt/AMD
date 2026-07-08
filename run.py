@@ -586,7 +586,6 @@ def main():
     if errors:
         print("\n".join(errors))
         print("\n  input 폴더에 파일을 넣고 다시 실행하세요.")
-        input("\n  Enter 키를 눌러 종료합니다...")
         sys.exit(1)
 
     print("\n  📂 파일 읽는 중...")
@@ -756,6 +755,8 @@ def main():
 
     # ── 매출집계(분석) 보고서 처리 ───────────────────────────
     # (매출집계분석 print는 sales_analysis.py 내부에서 출력)
+    _pu_val = 0   # POS 단위환급액 기본값 (try 실패 시에도 안전하게 사용)
+
     if sales_candidates:
         try:
             from sales_analysis import run as analysis_run, load_sales_vp_cg
@@ -773,6 +774,7 @@ def main():
             _pos_z = sum(1 for s,d in _ded.items()
                          if d.get("pos",0)==0 and s not in _event)
             _pu = int(_pos_t/_pos_z/10)*10 if _pos_z else 0
+            _pu_val = _pu   # try 성공 시에만 갱신
             _exp_map = {}
             for _shop in _SCM.keys():
                 _d=_ded.get(_shop,{}); _j=load_expense(exp_path).get(_shop,0) if exp_path else 0
@@ -811,7 +813,7 @@ def main():
         from sales_summary import run as summary_run
         _ev = {e["shop"] for e in employees
                if (e.get("note","") or "").strip()=="행사매장"}
-        _pu_val = _pu if "_pu" in dir() else 0
+        # _pu_val은 위 try 블록에서 이미 설정됨
         summary_run(ym, BASE, results,
                     sales_detail_for_notice,
                     expense_rows_for_notice,

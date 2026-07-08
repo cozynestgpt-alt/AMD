@@ -348,7 +348,6 @@ def add_dashboard(wb, rows, cur_year, cur_month, class_path=None):
 def add_category_sheet(wb, rows, cur_year, cur_month, store_class, category, sheet_name):
     ws = wb.create_sheet(sheet_name)
     _title(ws, sheet_name, 12)
-    ws.append([])
     headers = ['구분','매장코드','매장명']
     for m in SHORT_METRICS:
         headers += [m+'\n2025', '2026']
@@ -403,7 +402,6 @@ def add_new_store_sheet(wb, rows, cur_year, cur_month, store_class):
 def add_same_store_sheet(wb, rows, cur_year, cur_month, store_class):
     ws = wb.create_sheet('동일매장분석')
     _title(ws, '동일매장분석', 18)
-    ws.append([])
     headers = ['동일\n매장코드','매장명','매출금액\n2025','2026','당기기준\n신장률','수금액(V+)\n2025','2026','매출대비\n수금율','생산원가(V-)\n2025','2026','매출(V-)대비\n원가배수','총경비\n2025','2026','매출(V-)대비\n경비율','영업이익(V-)\n2025','2026','매출(V-)대비\n이익률','공헌\n이익률','증감액']
     ws.append(headers)
     prev = group_by_store(rows_for_period(rows, cur_year-1, cur_month))
@@ -445,7 +443,6 @@ def add_yoy_summary_sheet(wb, rows, cur_year, cur_month, store_class):
         p=prev_by.get(key,{m:0 for m in METRICS}); c=cur_by.get(key,{m:0 for m in METRICS})
         cat = classify_code(code, store_class, p, c)
         categories[cat].append((p,c))
-    ws.append([])
     headers=['구분']
     for m in SHORT_METRICS: headers += [m+'\n2025', '2026']
     ws.append(headers)
@@ -498,7 +495,6 @@ def add_expense_ratio_trend(wb, rows, end_ym):
     for r in window:
         key=(str(r['매장코드']).zfill(5), r['매장명'])
         by[key][r['년-월']]['sales']+=r['판매금액']; by[key][r['년-월']]['exp']+=r['총경비']
-    ws.append([])
     headers=['매장코드','매장명']+yms+['합계']
     ws.append(headers)
     data=[]
@@ -534,7 +530,6 @@ def add_rank_sheet(wb, rows, latest_ym, sheet_name, sort_key, ascending=True):
         data.append([r['년'], f'{r["월"]:02d}', r['년-월'], str(r['매장코드']).zfill(5), r['매장명'], _k(sales), _k(r['수금액(V+)']), _k(r['수금액(V-)']), _k(r['생산원가(V-)']), _k(op), _k(exp), _k(profit), _vat_excl_rate(op-exp, sales), _vat_excl_rate(profit, sales), _vat_excl_rate(exp, sales)])
     key_idx={'순이익':11,'경비율':14,'영업이익':9}.get(sort_key,11)
     data.sort(key=lambda x:x[key_idx], reverse=not ascending)
-    ws.append([])
     headers=['년','월','년-월','매장코드','매장명','매출금액','수금액(V+)','수금액(V-)','생산원가(V-)','영업이익(V-)','총경비','순이익','영업이익-총경비\n(손익)','순이익율','경비율']
     ws.append(headers)
     for row in data: ws.append(row)
@@ -554,7 +549,6 @@ def add_year_month_profit(wb, rows, end_year):
     for r in rows:
         if r['년'] in years:
             profits[r['월']][r['년']] += r['순이익']
-    ws.append([])
     ws.append(['월']+years+['평균'])
     for m in range(1,13):
         vals=[_k(profits[m][y]) if profits[m][y] else None for y in years]
@@ -599,7 +593,6 @@ def add_quarter_season(wb, rows, cur_year):
     for sheet_name, key in [('분기분석','분기'),('시즌분석','시즌명')]:
         ws=wb.create_sheet(sheet_name)
         _title(ws, sheet_name, 12)
-        ws.append([])
         headers=[key,'판매금액','수금액(V+)','생산원가(V-)','영업이익(V-)','총경비','순이익','순이익율','경비율']
         ws.append(headers)
         groups=defaultdict(list)

@@ -438,9 +438,15 @@ def make_year_compare_report(ym: str, base_dir: Path) -> Path:
         exp_rate = _vat_excl_rate(q["총경비"], q["매출금액"])
         profit_rate = _vat_excl_rate(q["영업이익(V-)"], q["매출금액"])
         diff_profit = q["영업이익(V-)"] - p["영업이익(V-)"]
-        contrib = diff_profit / (total_cur["영업이익(V-)"] - total_prev["영업이익(V-)"]) if (total_cur["영업이익(V-)"] - total_prev["영업이익(V-)"]) else 0
-        same_rows.append([code, name, _make_display_value(p["매출금액"]), _make_display_value(q["매출금액"]), sales_growth, _make_display_value(p["수금액(V+)"]), _make_display_value(q["수금액(V+)"]), collect_rate, _make_display_value(p["생산원가(V-)"]), _make_display_value(q["생산원가(V-)"]), cost_mult, _make_display_value(p["총경비"]), _make_display_value(q["총경비"]), exp_rate, _make_display_value(p["영업이익(V-)"]), _make_display_value(q["영업이익(V-)"]), profit_rate, contrib, _make_display_value(diff_profit)])
-    same_rows.sort(key=lambda x: x[18], reverse=True)
+        same_rows.append([code, name, _make_display_value(p["매출금액"]), _make_display_value(q["매출금액"]), sales_growth, _make_display_value(p["수금액(V+)"]), _make_display_value(q["수금액(V+)"]), collect_rate, _make_display_value(p["생산원가(V-)"]), _make_display_value(q["생산원가(V-)"]), cost_mult, _make_display_value(p["총경비"]), _make_display_value(q["총경비"]), exp_rate, _make_display_value(p["영업이익(V-)"]), q["영업이익(V-)"], profit_rate, 0, _make_display_value(diff_profit)])
+    same_rows.sort(key=lambda x: x[0])   # A열 매장코드 오름차순
+    # 공헌이익률 = 해당 점포 당해년도 영업이익 / 동일매장 전체 영업이익 합계 (R열)
+    _total_cur_profit = sum(r[15] for r in same_rows)  # index15 = 당해년도 영업이익 raw값
+    for r in same_rows:
+        r[17] = r[15] / _total_cur_profit if _total_cur_profit else 0  # index17 = 공헌이익률
+    # P열(index15)을 표시용 천원 단위로 변환 (raw→display, 공헌이익률 계산 후)
+    for r in same_rows:
+        r[15] = _make_display_value(r[15])
     headers_same = ["동일", "매장명", f"{prev_year}\n매출", f"{year}\n매출", "당기기준\n신장률", f"{prev_year}\n수금", f"{year}\n수금", "매출대비\n수금율", f"{prev_year}\n생산원가", f"{year}\n생산원가", "매출대비\n원가배수", f"{prev_year}\n총경비", f"{year}\n총경비", "매출대비\n경비율", f"{prev_year}\n영업이익", f"{year}\n영업이익", "매출대비\n이익률", "공헌\n이익률", "증감액"]
     _write_table(ws, 5, 1, headers_same, same_rows, number_cols={3,4,6,7,9,10,12,13,15,16,19}, pct_cols={5,8,14,17,18}, total_row=False)
     _apply_widths(ws, [8,20,11,11,9,11,11,9,11,11,9,11,11,9,11,11,9,9,11])
