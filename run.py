@@ -25,6 +25,43 @@ INPUT  = BASE / "input"
 OUTPUT = BASE / "output"
 TMPL   = BASE / "templates"
 
+# ── 입력 파일 탐색 헬퍼 (과거 달 재조회 지원) ──────────────────
+def find_input(scoped_patterns, loose_patterns=(), base: Path = None):
+    """
+    input/ 최상위뿐 아니라 input/이전/ 등 하위 폴더까지 재귀적으로 입력 파일을 찾는다.
+
+    scoped_patterns : ym(연-월)이 패턴에 포함되어 다른 달 파일과 절대 겹치지 않는 패턴들.
+                       1) input/ 최상위에서 먼저 찾고 (이번 달/최신 파일 우선)
+                       2) 최상위에 없으면 input/이전/ 등 하위 폴더까지 재귀 탐색 (과거 달 재조회)
+    loose_patterns  : ym 정보가 없는 느슨한 패턴(예: "◈*.xlsx"). scoped_patterns가 전부
+                       실패했을 때만, 최상위에서만(재귀 탐색 없이) 최후 수단으로 사용한다.
+                       input/이전/ 폴더에는 여러 달 파일이 함께 쌓이므로, 느슨한 패턴을
+                       재귀 탐색에 쓰면 엉뚱한 달의 파일을 집어올 수 있기 때문이다.
+    반환: 찾은 Path 리스트 (중복 제거, 우선순위 순)
+    """
+    base = base or INPUT
+    seen, out = set(), []
+    def _add(paths):
+        for p in paths:
+            key = str(p)
+            if key not in seen:
+                seen.add(key); out.append(p)
+    for pat in scoped_patterns:
+        _add(sorted(base.glob(pat)))
+    if out:
+        return out
+    for pat in scoped_patterns:
+        _add(sorted(base.rglob(pat)))
+    if out:
+        return out
+    for pat in loose_patterns:
+        _add(sorted(base.glob(pat)))
+    return out
+
+def find_input_one(scoped_patterns, loose_patterns=(), base: Path = None):
+    found = find_input(scoped_patterns, loose_patterns, base)
+    return found[0] if found else None
+
 # ── 색상 팔레트 ────────────────────────────────────────────
 NAVY        = "1F3864"
 BLUE        = "2E5EAA"
@@ -238,16 +275,19 @@ def make_notice(results: list, ym: str, out_dir: Path,
     FMT = "#,##0"
 
     # 전화요금·세액공제·직배비공제 데이터 로드
+    ym_compact = ym.replace("-", "")
     try:
         from amd_report import (load_phone_fee, load_tax_deduction,
                                 load_delivery_fee, DELIVERY_FEE_EXCLUDE)
-        _INPUT = BASE / "input"
-        _phone_path  = next(iter(_INPUT.glob("매장전화요금내역.xlsx")), None) or                        next(iter(_INPUT.glob("*전화요금*.xlsx")), None)
+        _phone_path  = find_input_one(["매장전화요금내역.xlsx"], ["*전화요금*.xlsx"])
         _tax_paths   = [
-            next(iter(_INPUT.glob("급여상여명세서_일용직*.xlsx")), None),
-            next(iter(_INPUT.glob("급여상여명세서_매장직*.xlsx")), None),
+            find_input_one([f"급여상여명세서_일용직*{ym_compact}*.xlsx"], ["급여상여명세서_일용직*.xlsx"]),
+            find_input_one([f"급여상여명세서_매장직*{ym_compact}*.xlsx"], ["급여상여명세서_매장직*.xlsx"]),
         ]
-        _deliv_path  = next(iter(_INPUT.glob("*로젠*고객직배*.xlsx")), None) or                        next(iter(_INPUT.glob("*고객직배*.xlsx")), None)
+        _deliv_path  = find_input_one(
+            [f"*{ym[2:4]}.{ym[5:]}월*로젠*고객직배*.xlsx", f"*{ym[2:4]}.{int(ym[5:])}월*로젠*고객직배*.xlsx",
+             f"*{ym[2:4]}.{ym[5:]}월*고객직배*.xlsx", f"*{ym[2:4]}.{int(ym[5:])}월*고객직배*.xlsx"],
+            ["*로젠*고객직배*.xlsx", "*고객직배*.xlsx"])
         _phone_data  = load_phone_fee(_phone_path, ym) if _phone_path else {}
         _tax_data    = load_tax_deduction(_tax_paths)
         _deliv_data2 = load_delivery_fee(_deliv_path) if _deliv_path else {}
@@ -443,13 +483,17 @@ def make_summary(results: list, ym: str, out_dir: Path,
                if (e.get("note","") or "").strip()=="행사매장"}
         _mgr = {e["shop"] for e in (master or [])
                 if e.get("pay_type","")=="중간관리"}
+        _ym_compact = ym.replace("-", "")
         _phone = load_phone_fee(
-            next(iter(INPUT.glob("매장전화요금내역.xlsx")),None), ym)
+            find_input_one(["매장전화요금내역.xlsx"], ["*전화요금*.xlsx"]), ym)
         _tax = load_tax_deduction([
-            next(iter(INPUT.glob("급여상여명세서_일용직*.xlsx")),None),
-            next(iter(INPUT.glob("급여상여명세서_매장직*.xlsx")),None)])
+            find_input_one([f"급여상여명세서_일용직*{_ym_compact}*.xlsx"], ["급여상여명세서_일용직*.xlsx"]),
+            find_input_one([f"급여상여명세서_매장직*{_ym_compact}*.xlsx"], ["급여상여명세서_매장직*.xlsx"])])
         _deliv = load_delivery_fee(
-            next(iter(INPUT.glob("*로젠*고객직배*.xlsx")),None))
+            find_input_one(
+                [f"*{ym[2:4]}.{ym[5:]}월*로젠*고객직배*.xlsx", f"*{ym[2:4]}.{int(ym[5:])}월*로젠*고객직배*.xlsx",
+                 f"*{ym[2:4]}.{ym[5:]}월*고객직배*.xlsx", f"*{ym[2:4]}.{int(ym[5:])}월*고객직배*.xlsx"],
+                ["*로젠*고객직배*.xlsx", "*고객직배*.xlsx"]))
         _arba  = load_arba_subtotals(out_dir/"아르바이트_정산서.xlsx")
 
         _shop_fee = _dd(int); _shop_inc = {}
@@ -567,17 +611,16 @@ def main():
     master_path  = INPUT / "사원마스터.xlsx"
 
     ym_compact = ym.replace("-","")
+    _yy, _mm_pad = ym[2:4], ym[5:]
+    _mm_bare = str(int(_mm_pad))
 
-    # 매장공제건집계 파일 탐지
-    deduct_candidates = (
-        list(INPUT.glob(f"*매장공제건*{ym[2:4]}년*.xlsx")) +
-        list(INPUT.glob(f"*매장공제건*{ym[5:]}월*.xlsx")) +
-        list(INPUT.glob(f"*매장공제건*.xlsx")) +
-        list(INPUT.glob(f"◈*.xlsx"))
+    # 매장공제건집계 파일 탐지 (input/ 최상위 우선, 없으면 input/이전/까지 재귀 탐색)
+    # 연도만/월만 담긴 패턴은 같은 해의 다른 달 파일과 겹칠 수 있어(예: "26년"만으로는
+    # 6월과 5월 파일을 구분 못함) 반드시 연+월을 함께(AND) 요구하는 패턴만 scoped로 사용한다.
+    deduct_candidates = find_input(
+        [f"*매장공제건*{_yy}년*{_mm_pad}월*.xlsx", f"*매장공제건*{_yy}년*{_mm_bare}월*.xlsx"],
+        [f"*매장공제건*.xlsx", f"◈*.xlsx"]
     )
-    seen_d=set()
-    deduct_candidates=[p for p in deduct_candidates
-                       if not (str(p) in seen_d or seen_d.add(str(p)))]
     deduct_path = deduct_candidates[0] if deduct_candidates else None
 
     errors = []
@@ -598,15 +641,13 @@ def main():
         print(f"     공제건집계: 없음 (공제 0 처리)")
 
     # 매출 파일(영*판매*.xlsx) 탐지 — calc·개별통지문·매출집계 모두에서 사용
-    sales_candidates = (
-        list(INPUT.glob(f"영*판매*{ym_compact}*.xlsx")) +
-        list(INPUT.glob(f"영*{ym_compact}*판매*.xlsx")) +
-        list(INPUT.glob(f"영*판매*{ym[2:4]}*.xlsx")) +
-        list(INPUT.glob(f"영*{ym[5:]}*.xlsx"))
+    # (input/ 최상위 우선, 없으면 input/이전/까지 재귀 탐색 → 과거 달 재조회 지원)
+    # 연도만/월만 담긴 느슨한 패턴은 같은 해의 다른 달 파일과 겹칠 수 있어 loose(최상위 전용,
+    # 최후 수단)로만 사용하고, ym_compact(연+월 전체)가 포함된 패턴만 재귀 탐색 대상으로 삼는다.
+    sales_candidates = find_input(
+        [f"영*판매*{ym_compact}*.xlsx", f"영*{ym_compact}*판매*.xlsx"],
+        [f"영*판매*{_yy}*.xlsx", f"영*{_mm_pad}*.xlsx"],
     )
-    seen_paths = set()
-    sales_candidates = [p for p in sales_candidates
-                        if not (str(p) in seen_paths or seen_paths.add(str(p)))]
 
     # 영판매 파일에서 매출 데이터 로드 → calc()에 사용
     if sales_candidates:
@@ -625,8 +666,10 @@ def main():
         sales = {}
 
     # 경비내역서 파일 탐지 (개별통지문·경비집계 모두에서 사용)
-    exp_path = next(iter(INPUT.glob("★*경비내역서*.xlsx")), None) or \
-               next(iter(INPUT.glob("*경비내역서*.xlsx")), None)
+    exp_path = find_input_one(
+        [f"★*{_yy}년*{_mm_pad}월*경비내역서*.xlsx", f"★*{_yy}년*{_mm_bare}월*경비내역서*.xlsx",
+         f"*{_yy}년*{_mm_pad}월*경비내역서*.xlsx", f"*{_yy}년*{_mm_bare}월*경비내역서*.xlsx"],
+        ["★*경비내역서*.xlsx", "*경비내역서*.xlsx"])
     from expense_report import load_expense
 
     # 계산
@@ -668,7 +711,10 @@ def main():
                                     load_inventory as _linv, STORE_CODE_MAP as _scm)
         _exp_d = _le(exp_path, ym)
         _ded_d = _ldd(deduct_path)
-        _inv_path2 = next(iter(INPUT.glob("*재고실사*공제건*합계*.xlsx")),None) or                      next(iter(INPUT.glob("*재고실사*.xlsx")),None)
+        _inv_path2 = find_input_one(
+            [f"*{_yy}년*{_mm_pad}월*재고실사*공제건*합계*.xlsx", f"*{_yy}년*{_mm_bare}월*재고실사*공제건*합계*.xlsx",
+             f"*{_yy}년*{_mm_pad}월*재고실사*.xlsx", f"*{_yy}년*{_mm_bare}월*재고실사*.xlsx"],
+            ["*재고실사*공제건*합계*.xlsx", "*재고실사*.xlsx"])
         _inv_d = _linv(_inv_path2) if _inv_path2 else {}
         _event2 = {e["shop"] for e in employees if (e.get("note","") or "").strip()=="행사매장"}
         _pos_t2 = sum(d.get("pos",0) for d in _ded_d.values())
@@ -691,11 +737,9 @@ def main():
     ym_compact = ym.replace("-", "")
 
     # ── 아르바이트 파일: 파일명에 '일용직' 포함 여부 무관하게 glob 검색
+    # (모든 패턴에 ym_compact가 포함되어 있어 다른 달 파일과 겹치지 않음 → find_input으로 재귀 탐색)
     def _find(pattern_list):
-        for pat in pattern_list:
-            found = list(INPUT.glob(pat))
-            if found: return found[0]
-        return None
+        return find_input_one(pattern_list)
 
     arba_staff  = _find([f"사원현황_{ym_compact}.xlsx",  f"사원현황*{ym_compact}*.xlsx",  f"사원현황*일용직*{ym_compact}*.xlsx"])
     arba_salary = _find([f"급여상여명세서_{ym_compact}.xlsx", f"급여상여명세서*{ym_compact}*.xlsx", f"급여상여명세서*일용직*{ym_compact}*.xlsx"])
@@ -764,8 +808,10 @@ def main():
                                         STORE_CODE_MAP as _SCM)
             # 경비합계 재계산 (expense_report와 동일 로직)
             _ded = load_deduction_detail(deduct_path)
-            _inv_path = next(iter(INPUT.glob("*재고실사*공제건*합계*.xlsx")), None) or \
-                        next(iter(INPUT.glob("*재고실사*.xlsx")), None)
+            _inv_path = find_input_one(
+                [f"*{_yy}년*{_mm_pad}월*재고실사*공제건*합계*.xlsx", f"*{_yy}년*{_mm_bare}월*재고실사*공제건*합계*.xlsx",
+                 f"*{_yy}년*{_mm_pad}월*재고실사*.xlsx", f"*{_yy}년*{_mm_bare}월*재고실사*.xlsx"],
+                ["*재고실사*공제건*합계*.xlsx", "*재고실사*.xlsx"])
             from expense_report import load_inventory as _li
             _inv = _li(_inv_path) if _inv_path else {}
             _event = {e["shop"] for e in employees
