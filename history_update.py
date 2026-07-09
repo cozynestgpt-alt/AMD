@@ -82,6 +82,12 @@ def read_analysis(path: Path, ym: str):
         op = _n(ws.cell(r,9).value)
         total_exp = _n(ws.cell(r,21).value)
         profit = _n(ws.cell(r,22).value)
+        # 행사매장 등 해당 월 활동이 전혀 없는 매장은 판매금액~순이익이 모두 0으로 찍힌다.
+        # 이런 빈 행은 DB에 실제 매장 실적처럼 섞이면 랭킹/집계 시트를 왜곡하므로 제외한다.
+        # (예: 00143 롯데잠실캐슬프라자점 — 행사매장으로 등록되어 상시 매출이 없고,
+        #  거래가 있는 달과 전혀 없는 달이 뒤섞여 나타남)
+        if not any([sales, vp, vn, cg, op, total_exp, profit]):
+            continue
         # 순이익율은 V- 기준: 순이익(V-) / (판매금액(V+) / 1.1)
         denom_sales_vminus = sales / 1.1 if sales else 0
         rate = profit / denom_sales_vminus if denom_sales_vminus else 0
