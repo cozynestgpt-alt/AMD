@@ -446,6 +446,17 @@ def add_year_month_profit(wb, rows, end_year, end_month):
     data2=Reference(ws,min_col=2,max_col=1+len(years),min_row=start2+2,max_row=start2+14)
     cats2=Reference(ws,min_col=1,min_row=start2+3,max_row=start2+14)
     chart2.add_data(data2,titles_from_data=True); chart2.set_categories(cats2); chart2.legend.position='r'
+    # 최근 연도(마지막 계열)에만 각 지점 위에 누적값 레이블 표시, 과거 연도는 레이블 없음
+    latest_series2 = chart2.series[-1]
+    latest_series2.dLbls = DataLabelList()
+    latest_series2.dLbls.showVal = True
+    latest_series2.dLbls.showLegendKey = False
+    latest_series2.dLbls.showCatName = False
+    latest_series2.dLbls.showSerName = False
+    latest_series2.dLbls.showPercent = False
+    latest_series2.dLbls.showBubbleSize = False
+    latest_series2.dLbls.numFmt = '#,##0'
+    latest_series2.dLbls.dLblPos = 't'
     ws.add_chart(chart2,f'H{start2+2}')
     _autofit(ws, {'A':14, **{get_column_letter(c):14 for c in range(2,2+len(years)+1)}})
 
