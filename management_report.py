@@ -53,11 +53,8 @@ def load_store_classification(base_dir: Path, ym: str):
     파일이 없으면 기존 하드코딩(EVENT_INFO/CLOSED_INFO) 기준으로 fallback 한다.
     반환값: {code: {name, category, memo, source}}
     """
-    input_dir = base_dir / 'input'
-    ym_compact = ym.replace('-', '')
-    candidates = list(input_dir.glob(f'매장구분_행사_신규_폐점_{ym_compact}.xlsx'))
-    if not candidates:
-        candidates = sorted(input_dir.glob('매장구분_행사_신규_폐점_*.xlsx'), reverse=True)
+    input_dir = base_dir / 'input' / ym
+    candidates = sorted(input_dir.glob('매장구분_행사_신규_폐점*.xlsx'))
     if not candidates:
         fallback = {}
         for code, memo in EVENT_INFO.items():

@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+from common import find_input_one
+
 try:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -808,31 +810,22 @@ def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
 # 4. 메인
 # ══════════════════════════════════════════════════════════════
 def run(ym: str, base_dir: Path):
-    INPUT  = base_dir / "input"
+    INPUT  = base_dir / "input" / ym
     OUTPUT = base_dir / "output" / ym
 
-    # 파일 경로 — 파일명에 '일용직' 포함 여부 무관하게 glob 검색
-    # (패턴에 ymc(연월 전체)가 포함되어 다른 달과 겹치지 않음 → input/ 최상위 우선,
-    #  없으면 input/이전/ 등 하위 폴더까지 재귀 탐색해 과거 달 재조회를 지원한다)
-    ymc = ym.replace("-", "")
+    # 정산월 폴더(input/YYYY-MM/) 안에서만 찾음. 급여상여명세서는 매장직/일용직 두 종류가
+    # 한 폴더에 함께 있으므로 아르바이트 처리에는 반드시 '일용직' 파일만 골라야 한다.
     def _find(patterns):
-        for pat in patterns:
-            found = sorted(INPUT.glob(pat))
-            if found: return found[0]
-        for pat in patterns:
-            found = sorted(INPUT.rglob(pat))
-            if found: return found[0]
-        return None
+        return find_input_one(patterns, base=INPUT)
 
-    staff_path  = _find([f"사원현황_{ymc}.xlsx",      f"사원현황*{ymc}*.xlsx",      f"사원현황*일용직*{ymc}*.xlsx"])
-    # 일용직 파일 우선 탐지 (급여상여명세서_일용직_YYYYMM.xlsx)
-    salary_path = _find([f"급여상여명세서*일용직*{ymc}*.xlsx", f"급여상여명세서_{ymc}.xlsx", f"급여상여명세서*{ymc}*.xlsx"])
-    attend_path = _find([f"월별근태_{ymc}.xlsx",       f"월별근태*{ymc}*.xlsx",       f"월별근태*일용직*{ymc}*.xlsx"])
+    staff_path  = _find(["사원현황*일용직*.xlsx", "사원현황*.xlsx"])
+    salary_path = _find(["급여상여명세서*일용직*.xlsx"])
+    attend_path = _find(["월별근태*일용직*.xlsx", "월별근태*.xlsx"])
 
     errors = []
-    if not staff_path:  errors.append(f"  ❌ 없음: 사원현황_{ymc}.xlsx (또는 사원현황_일용직_{ymc}.xlsx)")
-    if not salary_path: errors.append(f"  ❌ 없음: 급여상여명세서_{ymc}.xlsx")
-    if not attend_path: errors.append(f"  ❌ 없음: 월별근태_{ymc}.xlsx")
+    if not staff_path:  errors.append(f"  ❌ 없음: 사원현황_{ym.replace('-','')}.xlsx (또는 사원현황_일용직_{ym.replace('-','')}.xlsx)")
+    if not salary_path: errors.append(f"  ❌ 없음: 급여상여명세서_일용직_{ym.replace('-','')}.xlsx")
+    if not attend_path: errors.append(f"  ❌ 없음: 월별근태_{ym.replace('-','')}.xlsx")
     if errors:
         print("\n".join(errors))
         return None

@@ -159,16 +159,16 @@ def _apply_page_setup(ws, print_area="A10:AH53"):
 
 def make_tax_invoice(ym: str, base_dir: Path,
                      results: list, expense_rows: dict, master: list) -> Path:
-    INPUT    = base_dir / "input"
+    INPUT    = base_dir / "input" / ym
     TMPL_DIR = base_dir / "templates"
     OUTPUT   = base_dir / "output" / ym
     OUTPUT.mkdir(parents=True, exist_ok=True)
 
-    info_path = next(iter(INPUT.glob("중간관리매장_매입세금계산서*.xlsx")), None)
+    info_path = next(iter(sorted(INPUT.glob("중간관리매장_매입세금계산서*.xlsx"))), None)
     tmpl_path = TMPL_DIR / "세금계산서출력_템플릿.xlsx"
 
     if not info_path:
-        print(f"     ⚠️  기재사항정보 파일 없음: input/중간관리매장_매입세금계산서_기재사항정보.xlsx")
+        print(f"     ⚠️  기재사항정보 파일 없음: input/{ym}/중간관리매장_매입세금계산서_기재사항정보.xlsx")
         return None
     if not tmpl_path.exists():
         print(f"     ⚠️  템플릿 없음: templates/세금계산서출력_템플릿.xlsx")
