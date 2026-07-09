@@ -28,7 +28,7 @@ except ImportError:
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-from common import STORE_CODE_MAP
+from common import STORE_CODE_MAP, find_input_one
 
 # ── 부서명 → 매장명 매핑 (세액공제용) ─────────────────────────
 DEPT_TO_STORE = {
@@ -263,40 +263,21 @@ def load_arba_subtotals(path: Path) -> dict:
 def make_amd_report(ym: str, base_dir: Path, results: list,
                     sales_detail: dict, expense_rows: dict,
                     master: list) -> Path:
-    INPUT  = base_dir / "input"
+    INPUT  = base_dir / "input" / ym
     OUTPUT = base_dir / "output" / ym
     OUTPUT.mkdir(parents=True, exist_ok=True)
 
-    # ── 추가 소스 파일 탐지 ──────────────────────────────
-    # scoped: 연월(ym_compact) 또는 연+월을 동시에 요구하는 패턴(다른 달과 안 겹침)
-    #         → input/ 최상위 우선, 없으면 input/이전/까지 재귀 탐색 (과거 달 재조회 지원)
-    # loose : 연월 정보 없는 느슨한 패턴 → 최상위에서만, scoped가 전부 실패했을 때 최후 수단
-    def find_in(scoped, loose=()):
-        for pat in scoped:
-            found = sorted(INPUT.glob(pat))
-            if found: return found[0]
-        for pat in scoped:
-            found = sorted(INPUT.rglob(pat))
-            if found: return found[0]
-        for pat in loose:
-            found = sorted(INPUT.glob(pat))
-            if found: return found[0]
-        return None
-
-    _ym_compact = ym.replace("-", "")
-    _yy, _mm_pad = ym[2:4], ym[5:]
-    _mm_bare = str(int(_mm_pad))
+    # ── 추가 소스 파일 탐지 (정산월 폴더 안에서만 찾음) ──────────────
+    def find_in(patterns):
+        return find_input_one(patterns, base=INPUT)
 
     arba_path = OUTPUT / "아르바이트_정산서.xlsx"
     tax_paths = [
-        find_in([f"급여상여명세서_일용직*{_ym_compact}*.xlsx"], ["급여상여명세서_일용직*.xlsx", "급여상여명세서*일용직*.xlsx"]),
-        find_in([f"급여상여명세서_매장직*{_ym_compact}*.xlsx"], ["급여상여명세서_매장직*.xlsx", "급여상여명세서*매장직*.xlsx"]),
+        find_in(["급여상여명세서*일용직*.xlsx"]),
+        find_in(["급여상여명세서*매장직*.xlsx"]),
     ]
-    phone_path    = find_in([], ["매장전화요금내역.xlsx", "*전화요금*.xlsx"])
-    delivery_path = find_in(
-        [f"*{_yy}.{_mm_pad}월*로젠*고객직배*.xlsx", f"*{_yy}.{_mm_bare}월*로젠*고객직배*.xlsx",
-         f"*{_yy}.{_mm_pad}월*고객직배*.xlsx", f"*{_yy}.{_mm_bare}월*고객직배*.xlsx"],
-        ["*로젠*고객직배*.xlsx", "*고객직배*.xlsx"])
+    phone_path    = find_in(["매장전화요금내역*.xlsx", "*전화요금*.xlsx"])
+    delivery_path = find_in(["*로젠*고객직배*.xlsx", "*고객직배*.xlsx"])
 
     print(f"     세액공제 파일: {[p.name if p else '없음' for p in tax_paths]}")
     print(f"     전화요금 파일: {phone_path.name if phone_path else '없음'}")

@@ -9,8 +9,66 @@ AMD 공통 모듈
     from common import NAVY, BLUE, st, bdr, STORE_CODE_MAP
 """
 
+from pathlib import Path
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+
+# ══════════════════════════════════════════════════════════
+# 입력 파일 탐색 (input/YYYY-MM/ 폴더 전용)
+# ══════════════════════════════════════════════════════════
+# 2026-07부터 input/ 은 매달 input/YYYY-MM/ 폴더 하나에만 그 달 자료가 들어있는
+# 구조로 바뀌었다 (예전 input/이전/ 재귀 탐색 방식 폐지). base로 넘긴 폴더 안에서만
+# 찾으므로 다른 달 파일과 섞일 걱정이 없다.
+def find_input(scoped_patterns, loose_patterns=(), base: Path = None):
+    """base(정산월 폴더) 안에서 scoped_patterns를 먼저 시도하고,
+    전부 실패하면 loose_patterns를 시도한다. 반환: 찾은 Path 리스트(중복 제거, 우선순위 순)."""
+    if base is None or not base.exists():
+        return []
+    seen, out = set(), []
+    def _add(paths):
+        for p in paths:
+            key = str(p)
+            if key not in seen:
+                seen.add(key); out.append(p)
+    for pat in scoped_patterns:
+        _add(sorted(base.glob(pat)))
+    if out:
+        return out
+    for pat in loose_patterns:
+        _add(sorted(base.glob(pat)))
+    return out
+
+def find_input_one(scoped_patterns, loose_patterns=(), base: Path = None):
+    found = find_input(scoped_patterns, loose_patterns, base)
+    return found[0] if found else None
+
+# 정산월 폴더(input/YYYY-MM/) 안에 있어야 하는 파일 종류.
+# required=True 인 파일이 없으면 run.py가 무엇이 빠졌는지 명확히 나열하고 중단한다
+# (매출 0 등으로 조용히 대체하지 않음). required=False 파일은 없으면 경고만 하고
+# 해당 항목 0/건너뜀으로 처리해 왔던 기존 동작을 유지한다.
+INPUT_FILE_SPECS = [
+    ("사원마스터",                              ["사원마스터*.xlsx"],                                True),
+    ("영판매(매출)",                            ["영*판매*.xlsx"],                                   True),
+    ("경비내역서",                              ["★*경비내역서*.xlsx", "*경비내역서*.xlsx"],          False),
+    ("매장공제건집계",                          ["*매장공제건*.xlsx", "◈*.xlsx"],                    False),
+    ("재고실사공제건합계",                      ["*재고실사*공제건*합계*.xlsx", "*재고실사*.xlsx"],   False),
+    ("사원현황(아르바이트)",                    ["사원현황*.xlsx"],                                  False),
+    ("급여상여명세서_일용직",                   ["급여상여명세서*일용직*.xlsx"],                      False),
+    ("급여상여명세서_매장직",                   ["급여상여명세서*매장직*.xlsx"],                      False),
+    ("월별근태(아르바이트)",                    ["월별근태*.xlsx"],                                  False),
+    ("매장전화요금내역",                        ["매장전화요금내역*.xlsx", "*전화요금*.xlsx"],        False),
+    ("중간관리매장_매입세금계산서_기재사항정보", ["중간관리매장_매입세금계산서*.xlsx"],               False),
+    ("로젠고객직배",                            ["*로젠*고객직배*.xlsx", "*고객직배*.xlsx"],          False),
+    ("매장구분_행사_신규_폐점",                 ["매장구분_행사_신규_폐점*.xlsx"],                    False),
+]
+
+def check_input_month(month_dir: Path):
+    """month_dir(input/YYYY-MM/)을 점검해 (필수 누락 라벨 목록, 선택 누락 라벨 목록)을 반환."""
+    missing_required, missing_optional = [], []
+    for label, patterns, required in INPUT_FILE_SPECS:
+        if not find_input_one(patterns, base=month_dir):
+            (missing_required if required else missing_optional).append(label)
+    return missing_required, missing_optional
 
 # ══════════════════════════════════════════════════════════
 # 색상 팔레트
