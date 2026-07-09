@@ -67,7 +67,14 @@ def read_analysis(path: Path, ym: str):
     for r in range(hr+1, ws.max_row+1):
         code = _clean_code(ws.cell(r,1).value)
         store = str(ws.cell(r,2).value or '').strip()
-        if not code or not store or '합계' in store or '총계' in store: continue
+        code_compact = code.replace(' ', '')
+        store_compact = store.replace(' ', '')
+        if not code or not store: continue
+        # 매장코드는 항상 숫자(5자리)이므로, 숫자가 아니면 '합 계'/'총계' 등 요약행으로 간주해 제외한다.
+        # (예: sales_analysis.py가 만드는 합계 행은 코드="합 계"(중간 공백), 매장명="(65개 매장)"이라
+        #  매장명만 검사하는 필터로는 걸러지지 않았음)
+        if not code_compact.isdigit() or '합계' in code_compact or '총계' in code_compact: continue
+        if '합계' in store_compact or '총계' in store_compact: continue
         sales = _n(ws.cell(r,3).value)
         vp = _n(ws.cell(r,4).value)
         vn = _n(ws.cell(r,7).value)
