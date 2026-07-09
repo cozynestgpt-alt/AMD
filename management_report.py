@@ -370,7 +370,7 @@ def add_rank_sheet(wb, rows, latest_ym):
     _autofit(ws, {'A':10,'B':22,'C':14,'D':14,'E':14,'F':14,'G':14,'H':14,'I':14,'J':10,'K':10})
 
 
-def add_year_month_profit(wb, rows, end_year):
+def add_year_month_profit(wb, rows, end_year, end_month):
     ws=wb.create_sheet('연도별월별영업순이익')
     _title(ws,'년도별 월별 총합계 영업 순이익', 12)
     years=[y for y in sorted({r['년'] for r in rows}) if 2023 <= y <= end_year]
@@ -398,19 +398,51 @@ def add_year_month_profit(wb, rows, end_year):
         ws.cell(start2+2+m,1,m)
         cum=[]
         for i,y in enumerate(years,2):
+            # 미래월(정산 대상월 이후)은 누적값이 있어도 무조건 빈 셀로 처리한다.
+            # (과거 달의 누적을 그대로 이어붙인 값이 찍히면 아직 안 지난 달에도
+            #  데이터가 있는 것처럼 보이는 버그가 있었음)
+            future = (y > end_year) or (y == end_year and m > end_month)
             val=sum(profits[mm][y] for mm in range(1,m+1))
-            ws.cell(start2+2+m,i,_k(val) if val else None); cum.append(_k(val) if val else None)
+            cell_val = None if future else _k(val)
+            ws.cell(start2+2+m,i,cell_val); cum.append(cell_val)
         av=[v for v in cum if v is not None]
         ws.cell(start2+2+m,2+len(years),round(sum(av)/len(av)) if av else None)
     _apply_table_style(ws,start2+2,1,start2+14,2+len(years))
     _num_fmt(ws,f'B{start2+3}:{get_column_letter(2+len(years))}{start2+14}')
     # charts
     chart = BarChart(); chart.type='col'; chart.style=10; chart.title='월별 영업 순이익'; chart.y_axis.title='천원'; chart.x_axis.title='월'
+    # openpyxl 기본값이 x_axis/y_axis 둘 다 axPos='l'로 겹치고 delete가 None(미지정)이라
+    # Excel이 두 축의 눈금 라벨을 아예 렌더링하지 않는 문제가 있었다. 카테고리축은 아래(b)/
+    # 값축은 왼쪽(l)으로 axPos를 분리하고, delete=False를 명시해야 눈금 라벨이 표시된다
+    # (실제 Excel로 열어 확인함 — axPos/tickLblPos만으로는 해결되지 않았음).
+    chart.x_axis.axPos = 'b'
+    chart.y_axis.axPos = 'l'
+    chart.x_axis.tickLblPos = 'nextTo'
+    chart.y_axis.tickLblPos = 'nextTo'
+    chart.x_axis.delete = False
+    chart.y_axis.delete = False
     data=Reference(ws,min_col=2,max_col=1+len(years),min_row=3,max_row=15)
     cats=Reference(ws,min_col=1,min_row=4,max_row=15)
     chart.add_data(data,titles_from_data=True); chart.set_categories(cats); chart.height=9; chart.width=18; chart.legend.position='b'
+    # 최근 연도(마지막 계열)에만 막대 위에 값 레이블 표시, 과거 연도는 레이블 없음
+    latest_series = chart.series[-1]
+    latest_series.dLbls = DataLabelList()
+    latest_series.dLbls.showVal = True
+    latest_series.dLbls.showLegendKey = False
+    latest_series.dLbls.showCatName = False
+    latest_series.dLbls.showSerName = False
+    latest_series.dLbls.showPercent = False
+    latest_series.dLbls.showBubbleSize = False
+    latest_series.dLbls.numFmt = '#,##0'
+    latest_series.dLbls.dLblPos = 'outEnd'
     ws.add_chart(chart,'H3')
     chart2=LineChart(); chart2.title='누적 영업 순이익'; chart2.y_axis.title='천원'; chart2.x_axis.title='월'; chart2.height=9; chart2.width=18
+    chart2.x_axis.axPos = 'b'
+    chart2.y_axis.axPos = 'l'
+    chart2.x_axis.tickLblPos = 'nextTo'
+    chart2.y_axis.tickLblPos = 'nextTo'
+    chart2.x_axis.delete = False
+    chart2.y_axis.delete = False
     data2=Reference(ws,min_col=2,max_col=1+len(years),min_row=start2+2,max_row=start2+14)
     cats2=Reference(ws,min_col=1,min_row=start2+3,max_row=start2+14)
     chart2.add_data(data2,titles_from_data=True); chart2.set_categories(cats2); chart2.legend.position='r'
@@ -449,7 +481,7 @@ def make_management_report(base_dir: Path = None, out_path: Path = None, ym: str
     wb.remove(wb.active)
     add_dashboard(wb, rows, cur_year, cur_month)
     add_monthly_settlement_sheet(wb, rows, latest_ym, cur_year, cur_month)
-    add_year_month_profit(wb, rows, cur_year)
+    add_year_month_profit(wb, rows, cur_year, cur_month)
     add_rank_sheet(wb, rows, latest_ym)
     add_profit_trend_sheet(wb, rows, latest_ym)
     add_expense_ratio_trend(wb, rows, latest_ym)
