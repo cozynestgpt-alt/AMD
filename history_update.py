@@ -158,10 +158,10 @@ def run(ym: str, base_dir: Path = None):
     info = update_history(ym, base_dir)
     try:
         from history_report import run as report_run
-        report_run(base_dir or Path(__file__).parent)
+        report_run(base_dir or Path(__file__).parent, ym)
         try:
             from management_report import run as mgmt_report_run
-            mgmt_report_run(base_dir or Path(__file__).parent)
+            mgmt_report_run(base_dir or Path(__file__).parent, ym)
         except Exception as e:
             print(f'⚠️ 경영분석보고서 생성 오류: {e}')
         try:

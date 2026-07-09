@@ -606,7 +606,7 @@ def add_quarter_season(wb, rows, cur_year):
         _autofit(ws, {'A':12,'B':14,'C':14,'D':14,'E':14,'F':14,'G':14,'H':10,'I':10})
 
 
-def make_management_report(base_dir: Path = None, out_path: Path = None):
+def make_management_report(base_dir: Path = None, out_path: Path = None, ym: str = None):
     base_dir = Path(base_dir or Path(__file__).parent)
     rows = load_db(base_dir)
     latest_ym = latest_year_month(rows)
@@ -637,11 +637,20 @@ def make_management_report(base_dir: Path = None, out_path: Path = None):
     wb.save(out_path)
     print(f'✅ 경영분석보고서 생성 완료: {out_path}')
     print(f"   매장구분 기준: {class_path.name if class_path else '기존 자동/legacy 기준'}")
+    if ym:
+        try:
+            import shutil
+            month_out = base_dir/'output'/ym/'경영분석보고서.xlsx'
+            month_out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(out_path, month_out)
+            print(f'   ↳ 월별 사본: {month_out}')
+        except Exception as e:
+            print(f'   ⚠️ 월별 사본 저장 오류: {e}')
     return out_path
 
 
-def run(base_dir: Path = None):
-    return make_management_report(base_dir or Path(__file__).parent)
+def run(base_dir: Path = None, ym: str = None):
+    return make_management_report(base_dir or Path(__file__).parent, ym=ym)
 
 
 if __name__ == '__main__':
