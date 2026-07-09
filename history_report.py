@@ -142,12 +142,21 @@ def make_report(db_path: Path, out_path: Path):
     wb.save(out_path)
     return out_path
 
-def run(base_dir: Path = None):
+def run(base_dir: Path = None, ym: str = None):
     base_dir=Path(base_dir or Path(__file__).parent)
     db_path=base_dir/'DB'/'월별손익DB.xlsx'
     out_path=base_dir/'output'/'연도별_분기별_시즌별_손익분석.xlsx'
     make_report(db_path,out_path)
     print(f'✅ 손익 분석 보고서 생성: {out_path}')
+    if ym:
+        try:
+            import shutil
+            month_out = base_dir/'output'/ym/'연도별_분기별_시즌별_손익분석.xlsx'
+            month_out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(out_path, month_out)
+            print(f'   ↳ 월별 사본: {month_out}')
+        except Exception as e:
+            print(f'   ⚠️ 월별 사본 저장 오류: {e}')
     return out_path
 
 if __name__=='__main__':
