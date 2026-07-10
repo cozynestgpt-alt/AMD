@@ -109,11 +109,46 @@
 - `sales_summary.py`: 판매수수료집계 보고서 → `output/판매수수료집계.xlsx`
 - `transfer_report.py`: 중간관리 판매수수료 이체내역 → `output/중간관리판매수수료이체내역.xlsx`
 - `tax_invoice_report.py`: 세금계산서 출력 → `output/세금계산서_YYYYMM.xlsx`
-- `management_report.py`: 경영분석보고서 생성 → `output/경영분석보고서.xlsx`
+- `management_report.py`: 경영분석보고서 생성 → `output/경영분석보고서.xlsx` (+ `output/YYYY-MM/`에도 월별 사본)
 - `year_compare_report.py`: 전년대비 판매수수료/손익 보고서 → `output/판매수수료_전년대비보고서.xlsx`
-- `history_report.py`: 월별손익DB 기준 연도/분기/시즌 분석 보고서 → `output/연도별_분기별_시즌별_손익분석.xlsx`
+- `history_report.py`: 월별손익DB 기준 연도/분기/시즌 분석 보고서 → `output/연도별_분기별_시즌별_손익분석.xlsx` (+ `output/YYYY-MM/`에도 월별 사본)
 - `history_update.py`: `DB/월별손익DB.xlsx` 업데이트 (2026-06부터 매출집계_분석.xlsx 자료 반영)
 - 출력 파일은 output/ 폴더에 생성됨 (.gitignore로 git 추적 제외)
+
+### run.py 호출 체인 (중요 — management_report.py 등은 "직접"이 아니라 2단 간접 호출됨)
+`run.py`의 `main()`은 amd_report/arba_process/expense_report/sales_report/
+sales_analysis/sales_summary/transfer_report/tax_invoice_report는 **직접** 호출하지만,
+`management_report.py`/`year_compare_report.py`/`history_report.py` 3개는 run.py
+본문에 이름이 등장하지 않는다. 대신 run.py 맨 마지막에 호출하는
+`history_update.run(ym, BASE)` **내부에서** 다음 순서로 체인 호출된다
+(`history_update.py`의 `run()` 함수, V8 최초 커밋 824a3e3부터 있던 원래 설계 —
+빠뜨린 버그 아님):
+
+```
+run.py: history_update.run(ym, BASE)
+  └─ update_history(ym, base_dir)          # DB 업데이트. try 밖 — 여기서 실패하면 아래 전부 스킵
+  └─ (성공 시) history_report.run(base_dir, ym)     # 실패하면 아래 두 개도 같이 스킵됨(같은 try 블록)
+       └─ management_report.run(base_dir, ym)       # 독립 try/except — 실패해도 아래는 실행됨
+       └─ year_compare_report.run(ym, base_dir)     # 독립 try/except
+```
+
+즉 `실행.bat`(`python run.py`) 한 번으로 경영분석보고서/전년대비보고서/손익분석
+보고서까지 전부 갱신된다. 단, DB 업데이트(`update_history`)나 `history_report.run()`
+자체가 예외를 던지면 그 아래 체인이 통째로 스킵되므로, "실행.bat을 돌렸는데
+경영분석보고서.xlsx가 그대로다"라면 콘솔에 `⚠️ 연도별/분기/시즌 보고서 생성 오류`
+같은 메시지가 없었는지부터 확인할 것. management_report.py 소스만 보고 "run.py가
+호출 안 하니 반영 안 됨"이라고 단정하지 말 것 — run.py 본문 텍스트에 이름이
+없다고 호출되지 않는 게 아니라, history_update.py를 거쳐 간접 호출된다
+(2026-07-10 이 문서와 실제 코드가 불일치하는 것처럼 보여 조사한 결과 확인).
+
+### .bat 파일별 실제 동작 (경영분석보고서.xlsx 갱신 여부 포함)
+| 파일 | 실행 내용 | 경영분석보고서.xlsx 갱신? |
+|---|---|---|
+| `실행.bat` | `python run.py` (전체 파이프라인, 위 체인 포함) | 갱신됨 |
+| `DB업데이트만.bat` | `python history_update.py` (ym 입력받아 위 체인 중 update_history~year_compare_report 실행) | 갱신됨 — 이름은 "DB만"이지만 실제로는 3개 보고서도 같이 재생성됨 |
+| `보고서만생성.bat` | `history_report.py`→`management_report.py`→`year_compare_report.py`를 각각 독립 실행 (DB 업데이트 없이 보고서만 재생성하고 싶을 때) | 갱신됨 |
+| `전년대비보고서만생성.bat` | `python year_compare_report.py`만 | 갱신 안 됨 (전년대비보고서만 갱신) |
+| `1_배포_NAS로_동기화.bat` | robocopy로 `*.py *.bat requirements.txt templates/`를 NAS로 복사 (코드 배포 전용, input/output/DB 미접근) | 해당 없음 |
 
 ## 작업 스타일
 - 파일 수정 후에는 openpyxl 등으로 재계산/검증하고, 수식 오류 0건 확인 후 완료 보고할 것
