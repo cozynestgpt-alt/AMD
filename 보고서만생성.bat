@@ -10,6 +10,7 @@ if errorlevel 1 goto ERROR
 python "%SCRIPT_DIR%year_compare_report.py"
 if errorlevel 1 goto ERROR
 
+pause
 exit /b 0
 
 :ERROR
