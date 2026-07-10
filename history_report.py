@@ -148,10 +148,19 @@ def run(base_dir: Path = None, ym: str = None):
     out_path=base_dir/'output'/'연도별_분기별_시즌별_손익분석.xlsx'
     make_report(db_path,out_path)
     print(f'✅ 손익 분석 보고서 생성: {out_path}')
-    if ym:
+    # ym이 안 넘어와도(예: history_report.py 단독 실행) DB의 최신월로 자동 보완한다.
+    # 그렇지 않으면 output/YYYY-MM/ 사본이 갱신되지 않고 옛날 내용으로 남는 문제가 있었다.
+    month_ym = ym
+    if not month_ym:
+        try:
+            rows = load_db(db_path)
+            month_ym = sorted({r['년-월'] for r in rows})[-1] if rows else None
+        except Exception:
+            month_ym = None
+    if month_ym:
         try:
             import shutil
-            month_out = base_dir/'output'/ym/'연도별_분기별_시즌별_손익분석.xlsx'
+            month_out = base_dir/'output'/month_ym/'연도별_분기별_시즌별_손익분석.xlsx'
             month_out.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(out_path, month_out)
             print(f'   ↳ 월별 사본: {month_out}')

@@ -541,10 +541,13 @@ def make_management_report(base_dir: Path = None, out_path: Path = None, ym: str
         ws.page_margins.left = 0.3; ws.page_margins.right = 0.3; ws.page_margins.top = 0.5; ws.page_margins.bottom = 0.5
     wb.save(out_path)
     print(f'✅ 경영분석보고서 생성 완료: {out_path}')
-    if ym:
+    # ym이 안 넘어와도(예: management_report.py 단독 실행) DB의 최신월로 자동 보완한다.
+    # 그렇지 않으면 output/YYYY-MM/ 사본이 갱신되지 않고 옛날 내용으로 남는 문제가 있었다.
+    month_ym = ym or latest_ym
+    if month_ym:
         try:
             import shutil
-            month_out = base_dir/'output'/ym/'경영분석보고서.xlsx'
+            month_out = base_dir/'output'/month_ym/'경영분석보고서.xlsx'
             month_out.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(out_path, month_out)
             print(f'   ↳ 월별 사본: {month_out}')
