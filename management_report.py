@@ -436,6 +436,10 @@ def add_year_month_profit(wb, rows, end_year, end_month):
 
     # charts
     chart = BarChart(); chart.type='col'; chart.style=10; chart.title='월별 영업 순이익'; chart.y_axis.title='천원'; chart.x_axis.title='월'
+    # Excel 차트는 기본적으로 "표시된 셀만 표시"(visible_cells_only=True) 상태라
+    # 차트가 참조하는 hcol0 이후 컬럼을 숨김 처리하면 차트에 아무것도 그려지지
+    # 않는다. 숨긴 채로도 데이터가 표시되도록 반드시 False로 꺼야 한다.
+    chart.visible_cells_only = False
     # openpyxl 기본값이 x_axis/y_axis 둘 다 axPos='l'로 겹치고 delete가 None(미지정)이라
     # Excel이 두 축의 눈금 라벨을 아예 렌더링하지 않는 문제가 있었다. 카테고리축은 아래(b)/
     # 값축은 왼쪽(l)으로 axPos를 분리하고, delete=False를 명시해야 눈금 라벨이 표시된다
@@ -462,6 +466,7 @@ def add_year_month_profit(wb, rows, end_year, end_month):
     latest_series.dLbls.dLblPos = 'outEnd'
     ws.add_chart(chart,'H3')
     chart2=LineChart(); chart2.title='누적 영업 순이익'; chart2.y_axis.title='천원'; chart2.x_axis.title='월'; chart2.height=9; chart2.width=18
+    chart2.visible_cells_only = False
     chart2.x_axis.axPos = 'b'
     chart2.y_axis.axPos = 'l'
     chart2.x_axis.tickLblPos = 'nextTo'
