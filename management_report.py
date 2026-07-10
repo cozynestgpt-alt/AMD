@@ -18,6 +18,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.chart.label import DataLabelList
+from openpyxl.chart.marker import Marker
 
 NAVY = '1F3864'; BLUE='DDEBF7'; BLUE2='BFE8F5'; SKY='B7DEE8'; WHITE='FFFFFF'
 GRAY='D9E1F2'; LIGHT='F8FBFD'; PEACH='FCE4D6'; RED='C00000'; REDL='FFE0E0'; GREEN='006100'; GREENL='E2F0D9'; YELLOW='FFF2CC'
@@ -450,6 +451,7 @@ def add_year_month_profit(wb, rows, end_year, end_month):
     chart.y_axis.tickLblPos = 'nextTo'
     chart.x_axis.delete = False
     chart.y_axis.delete = False
+    chart.y_axis.number_format = '#,##0'
     data=Reference(ws,min_col=hcol0+1,max_col=hcol0+len(years),min_row=3,max_row=15)
     cats=Reference(ws,min_col=hcol0,min_row=4,max_row=15)
     chart.add_data(data,titles_from_data=True); chart.set_categories(cats); chart.height=9; chart.width=18; chart.legend.position='b'
@@ -473,9 +475,14 @@ def add_year_month_profit(wb, rows, end_year, end_month):
     chart2.y_axis.tickLblPos = 'nextTo'
     chart2.x_axis.delete = False
     chart2.y_axis.delete = False
+    chart2.y_axis.number_format = '#,##0'
     data2=Reference(ws,min_col=hcol0+1,max_col=hcol0+len(years),min_row=start2+2,max_row=start2+14)
     cats2=Reference(ws,min_col=hcol0,min_row=start2+3,max_row=start2+14)
     chart2.add_data(data2,titles_from_data=True); chart2.set_categories(cats2); chart2.legend.position='r'
+    # 연도별 계열마다 월별 지점에 마커(동그라미)를 표시
+    for s in chart2.series:
+        s.marker = Marker(symbol='circle', size=5)
+        s.smooth = False
     # 최근 연도(마지막 계열)에만 각 지점 위에 누적값 레이블 표시, 과거 연도는 레이블 없음
     latest_series2 = chart2.series[-1]
     latest_series2.dLbls = DataLabelList()
