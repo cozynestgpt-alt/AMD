@@ -4,8 +4,11 @@
 - 기존 경영진 보고 양식 참조
 - 2026년 5월까지는 DB/월별손익DB.xlsx의 기존 DB 수치 사용
 - 2026년 6월부터 history_update.py로 업데이트된 DB 수치 사용
-- 단위: Dashboard/연도별월별영업순이익/시즌분석은 천원, 월정산보고/경비율높은순/
-  순이익낮은순/월별경비율추이는 원 단위 (템플릿 참조)
+- 단위: Dashboard/시즌분석은 천원, 월정산보고/경비율높은순/순이익낮은순/
+  월별경비율추이/연도별월별영업순이익(표)는 원 단위 (템플릿 참조).
+  단, 연도별월별영업순이익 시트의 차트 2개는 표와 별도로 천원 단위를 유지한다
+  (표 셀을 그대로 참조하면 차트 스케일도 원 단위로 바뀌어 버리므로, 시트 우측에
+  숨김 컬럼으로 천원 환산 데이터를 별도로 만들어 차트가 그 숨김 데이터를 참조하게 함).
 """
 from pathlib import Path
 from collections import defaultdict
@@ -372,7 +375,7 @@ def add_rank_sheet(wb, rows, latest_ym):
 
 def add_year_month_profit(wb, rows, end_year, end_month):
     ws=wb.create_sheet('연도별월별영업순이익')
-    _title(ws,'년도별 월별 총합계 영업 순이익', 12)
+    _title(ws,'년도별 월별 총합계 영업 순이익', 12, unit='원')
     years=[y for y in sorted({r['년'] for r in rows}) if 2023 <= y <= end_year]
     profits=defaultdict(lambda:defaultdict(int))
     for r in rows:
@@ -380,10 +383,10 @@ def add_year_month_profit(wb, rows, end_year, end_month):
             profits[r['월']][r['년']] += r['순이익']
     ws.append(['월']+years+['평균'])
     for m in range(1,13):
-        vals=[_k(profits[m][y]) if profits[m][y] else None for y in years]
+        vals=[round(profits[m][y]) if profits[m][y] else None for y in years]
         avg_vals=[v for v in vals if v is not None]
         ws.append([m]+vals+[round(sum(avg_vals)/len(avg_vals)) if avg_vals else None])
-    ws.append(['합계']+[sum(_k(profits[m][y]) for m in range(1,13)) for y in years]+[None])
+    ws.append(['합계']+[sum(round(profits[m][y]) for m in range(1,13)) for y in years]+[None])
     end=ws.max_row
     _apply_table_style(ws,3,1,end,2+len(years))
     _num_fmt(ws,f'B4:{get_column_letter(2+len(years))}{end}')
@@ -403,12 +406,34 @@ def add_year_month_profit(wb, rows, end_year, end_month):
             #  데이터가 있는 것처럼 보이는 버그가 있었음)
             future = (y > end_year) or (y == end_year and m > end_month)
             val=sum(profits[mm][y] for mm in range(1,m+1))
-            cell_val = None if future else _k(val)
+            cell_val = None if future else round(val)
             ws.cell(start2+2+m,i,cell_val); cum.append(cell_val)
         av=[v for v in cum if v is not None]
         ws.cell(start2+2+m,2+len(years),round(sum(av)/len(av)) if av else None)
     _apply_table_style(ws,start2+2,1,start2+14,2+len(years))
     _num_fmt(ws,f'B{start2+3}:{get_column_letter(2+len(years))}{start2+14}')
+
+    # --- 차트 전용 천원 단위 숨김 데이터 (표는 원 단위지만 차트는 기존처럼 천원 유지) ---
+    hcol0 = 2 + len(years) + 3
+    ws.cell(3, hcol0, '월')
+    for i, y in enumerate(years):
+        ws.cell(3, hcol0 + 1 + i, y)
+    for m in range(1, 13):
+        ws.cell(3 + m, hcol0, m)
+        for i, y in enumerate(years):
+            ws.cell(3 + m, hcol0 + 1 + i, _k(profits[m][y]) if profits[m][y] else None)
+    ws.cell(start2 + 2, hcol0, '월')
+    for i, y in enumerate(years):
+        ws.cell(start2 + 2, hcol0 + 1 + i, y)
+    for m in range(1, 13):
+        ws.cell(start2 + 2 + m, hcol0, m)
+        for i, y in enumerate(years):
+            future = (years[i] > end_year) or (years[i] == end_year and m > end_month)
+            val = sum(profits[mm][years[i]] for mm in range(1, m + 1))
+            ws.cell(start2 + 2 + m, hcol0 + 1 + i, None if future else _k(val))
+    for c in range(hcol0, hcol0 + 1 + len(years)):
+        ws.column_dimensions[get_column_letter(c)].hidden = True
+
     # charts
     chart = BarChart(); chart.type='col'; chart.style=10; chart.title='월별 영업 순이익'; chart.y_axis.title='천원'; chart.x_axis.title='월'
     # openpyxl 기본값이 x_axis/y_axis 둘 다 axPos='l'로 겹치고 delete가 None(미지정)이라
@@ -421,8 +446,8 @@ def add_year_month_profit(wb, rows, end_year, end_month):
     chart.y_axis.tickLblPos = 'nextTo'
     chart.x_axis.delete = False
     chart.y_axis.delete = False
-    data=Reference(ws,min_col=2,max_col=1+len(years),min_row=3,max_row=15)
-    cats=Reference(ws,min_col=1,min_row=4,max_row=15)
+    data=Reference(ws,min_col=hcol0+1,max_col=hcol0+len(years),min_row=3,max_row=15)
+    cats=Reference(ws,min_col=hcol0,min_row=4,max_row=15)
     chart.add_data(data,titles_from_data=True); chart.set_categories(cats); chart.height=9; chart.width=18; chart.legend.position='b'
     # 최근 연도(마지막 계열)에만 막대 위에 값 레이블 표시, 과거 연도는 레이블 없음
     latest_series = chart.series[-1]
@@ -443,8 +468,8 @@ def add_year_month_profit(wb, rows, end_year, end_month):
     chart2.y_axis.tickLblPos = 'nextTo'
     chart2.x_axis.delete = False
     chart2.y_axis.delete = False
-    data2=Reference(ws,min_col=2,max_col=1+len(years),min_row=start2+2,max_row=start2+14)
-    cats2=Reference(ws,min_col=1,min_row=start2+3,max_row=start2+14)
+    data2=Reference(ws,min_col=hcol0+1,max_col=hcol0+len(years),min_row=start2+2,max_row=start2+14)
+    cats2=Reference(ws,min_col=hcol0,min_row=start2+3,max_row=start2+14)
     chart2.add_data(data2,titles_from_data=True); chart2.set_categories(cats2); chart2.legend.position='r'
     # 최근 연도(마지막 계열)에만 각 지점 위에 누적값 레이블 표시, 과거 연도는 레이블 없음
     latest_series2 = chart2.series[-1]
