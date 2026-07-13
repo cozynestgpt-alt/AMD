@@ -129,13 +129,33 @@
   `전년대비보고서만생성.bat`처럼 팀원에게 이미 익숙한 한글 파일명은 개명 대상이
   아니다 — 파일명 자체는 NTFS가 관리하는 유니코드 메타데이터라 이 버그와 무관하고,
   문제는 배치 "본문" 안의 non-ASCII 바이트다.
-- **⚠️ 할 일 — 병합 후 실제 기기 검증 필요.** 위 EncodedCommand 방식으로 한글이
-  정상 출력된다는 결론은 이 PC 로컬 sandbox에서 강제 실패 조건을 만들어 리다이렉트된
-  출력을 캡처한 뒤 CP949로 디코딩해 검증한 것이며, 실제 한국어 Windows 콘솔 화면에
-  직접 출력해서 눈으로 확인한 것이 아니다. **`feature/nas-git-deploy`를 main에
-  병합한 뒤, 반드시 실제 한국어 Windows PC에서 `실행.bat`을 더블클릭해 한글 알림
-  메시지가 깨지지 않고 정상 출력되는지 확인할 것.** 이 검증 전까지는 실전 확인이
-  끝난 것으로 간주하지 않는다.
+- **⚠️ 할 일 — 남은 실기기 검증.** EncodedCommand/한글 알림 문자열 자체가 콘솔
+  화면에서 깨지지 않는지는 아직 실제 눈으로 확인 안 됨(로컬 sandbox 리다이렉트
+  캡처로만 검증). 다만 아래 "dubious ownership" 건은 실제 팀원 PC에서 재현되어
+  원인 확인과 수정, NAS 재검증까지 완료됨 — 자세한 내용은
+  `docs/legacy/cp949_조사결과_및_결정.md` 6번 항목 참고.
+- **여러 줄짜리 PowerShell 로직은 `-EncodedCommand`(Base64)로 욱여넣지 말고
+  별도 `.ps1` 파일로 분리한다.** `_pull_retry.ps1`이 예시 — 조건문 여러 개가
+  섞인 로직을 Base64 한 줄에 넣으면 나중에 사람이 감사/디버깅할 때 다시
+  디코딩해야만 내용을 볼 수 있어 실용성이 떨어진다. `.ps1` 파일은 UTF-8(BOM)로
+  저장하면 cmd.exe 배치 파서를 거치지 않고 PowerShell이 직접 읽으므로 한글을
+  써도 코드페이지 문제가 없다. `.bat`은 `powershell ... -File "%~dp0_xxx.ps1"`
+  한 줄로 호출만 한다(본문은 여전히 ASCII 유지).
+- **PowerShell에서 git config 값이 이미 등록됐는지 확인할 땐 PowerShell 문자열
+  비교(`-contains`/`-notcontains`)로 직접 비교하지 말고 git 자신에게 물어본다**
+  (`git config --fixed-value --get-all <key> <value>`의 종료 코드로 판단).
+  한글처럼 유니코드 문자열을 비교할 때 `-notcontains`가 육안상 동일한 문자열도
+  다르다고 판단해 값을 중복 추가하는 버그가 실제로 발견됐다(정규화 형태 차이로
+  추정, `docs/legacy/cp949_조사결과_및_결정.md` 6번 항목 참고).
+- **NAS `git pull` 실패의 흔한 원인 — dubious ownership (CVE-2022-24765).**
+  Git 2.35.2+는 저장소 소유자 SID와 로그인 사용자 SID가 다르면 명령을 거부하는데,
+  NAS(SMB 공유)는 소유자 SID가 로컬 계정과 구조적으로 안 맞는 경우가 흔해서
+  네트워크 경로 저장소에서 특히 잘 걸린다. 실제 팀원 PC에서 `실행.bat` 더블클릭 시
+  "[알림] 최신 코드 확인 실패"로 재현됐던 원인이 바로 이것. `_pull_retry.ps1`이
+  `git config --global --add safe.directory`로 **이 NAS 경로 하나만** (`*`
+  전체 신뢰 아님) 등록한 뒤 pull을 한 번 더 재시도하는 자가 치유(self-heal)
+  로직으로 이미 수정됨 — 실제 NAS UNC 경로에서 최초 등록/재실행 시 중복
+  미등록까지 검증 완료.
 
 ## 알려진 과거 버그 (재발 방지용 기록)
 - `management_report.py`: 제목(_title) 작성 직후 `ws.append([])`가 한 번 더 호출되어
