@@ -22,7 +22,7 @@ try {
     $content = Get-Content -Path $noticePath -Raw -ErrorAction Stop
     if ([string]::IsNullOrWhiteSpace($content)) { exit 0 }
 
-    $hash = (git -C $repoDir log -1 --format=%H -- NOTICE.txt 2>$null)
+    $hash = (git -C "$repoDir." log -1 --format=%H -- NOTICE.txt 2>$null)
     if ([string]::IsNullOrWhiteSpace($hash)) { exit 0 }
     $hash = $hash.Trim()
 
