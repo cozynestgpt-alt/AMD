@@ -35,25 +35,52 @@
 - `v8.0.1-stable-snapshot` 태그: v8.0.1-stable 브랜치를 태그로 전환하며 남긴 마지막 상태
 - 문제가 생기면 이 태그들을 참고해서 복구 가능
 
-## NAS 운영 방식 (중요 — 코드 배포 규칙)
-- **코드의 진짜 버전(원본)은 이 PC(로컬 저장소) + GitHub main 브랜치에만 있다.**
-  NAS(`Y:\`, UNC 경로 `\\nas\CN_AMD\판매수수료 관련자료\salary_system_claude`)는
-  **git 저장소가 아니다.** 2026-07-09 이전에는 NAS에 `.git` 폴더가 통째로 남아있었고,
-  이미 정리된 오래된 `master` 브랜치(afe85da 이전 계열)에 체크아웃된 채 방치되어 있었다.
-  확인 결과 origin/main 대비 잃어버릴 새 작업이 전혀 없어 `.git` 폴더를 완전히
-  제거했다. NAS를 다시 git으로 되돌리지 말 것.
-- **NAS는 순수 실행 전용 폴더다.** 팀원들은 NAS의 `input/YYYY-MM/` 폴더에 그 달 자료만
-  넣고, `실행.bat`/`DB업데이트만.bat`/`보고서만생성.bat`/`전년대비보고서만생성.bat` 등
-  배치 파일을 더블클릭해 결과(`output/`)만 받는다. **팀원은 코드(.py)를 절대 건드리지
-  않는다.**
+## NAS 운영 방식 (중요 — 코드 배포 규칙, 2026-07-13 git pull 방식으로 재전환)
+- **코드의 진짜 버전(원본)은 GitHub main 브랜치다.** NAS(`Y:\`, UNC 경로
+  `\\nas\CN_AMD\판매수수료 관련자료\salary_system_claude`)는 이제 **다시 git
+  저장소다** — 아래 이력/이유 참고. `origin`은 `https://github.com/cozynestgpt-alt/AMD.git`,
+  `main` 브랜치를 체크아웃한 상태로 유지한다.
+- **이력 (왜 "git 아님" → "다시 git"으로 바뀌었나)**: 2026-07-09 이전에는 NAS에
+  `.git` 폴더가 통째로 남아있었지만, 이미 정리된 오래된 `master` 브랜치
+  (afe85da 이전 계열)에 체크아웃된 채 방치되어 있었고 아무도 관리하지 않아서
+  당시(PR #21) `.git` 폴더를 완전히 제거하고 "NAS는 git 저장소가 아니다,
+  robocopy로만 배포한다"로 정책을 정했다. 그런데 robocopy 배포는 매번 사람이
+  이 PC에서 `1_배포_NAS로_동기화.bat`을 수동 실행해야 하는 번거로움이 있어서,
+  2026-07-13(PR #36 및 그 직전 커밋 `0a659c7`)에 이 결정을 의도적으로
+  재검토해서 뒤집었다. 팀원용 실행 bat들이 python을 호출하기 전에 내부 헬퍼
+  `_auto_git_pull.bat`을 통해 **매번 자동으로 `git pull --ff-only`** 를 실행하는
+  방식으로 바뀌었고, 아래 안전장치를 설계해 이번엔 방치될 위험을 줄였다:
+  - `.pulling.lock` 파일로 동시 실행(여러 팀원이 동시에 bat 실행) 시 pull이
+    중복/충돌하지 않도록 막는다(`.gitignore`에도 등록되어 있어 커밋되지 않음).
+  - `git pull --ff-only`만 사용 — fast-forward가 안 되는 상황(NAS 쪽에 로컬
+    커밋이 쌓이는 등 예상 밖의 분기)이면 그냥 실패하고 멈춘다(강제 병합·리셋
+    안 함).
+  - pull이 실패해도(네트워크 문제 등) 팀원의 작업 자체를 막지 않는다 — 기존
+    코드로 계속 진행되고, 실패 알림만 PowerShell `-EncodedCommand`로 한글
+    표시한다(`_auto_git_pull.bat`, [[cp949_조사결과_및_결정]] 참고).
+  - `input/output/DB/backup`과 NAS 로컬 전용 실무 파일(예: `templates/` 안의
+    산출물 2건)은 `.gitignore`에 등록되어 있어 `git pull`이 절대 건드리지 않는다.
+  - 2026-07-13 실제로 NAS에서 `git pull --ff-only` 수동 실행해 `ea7ffb2` →
+    `37acf8e`(PR #36 포함)까지 fast-forward 성공, `input/output/DB/backup`
+    미접근 확인 완료.
+- **NAS는 여전히 순수 실행 전용 폴더다.** 팀원들은 NAS의 `input/YYYY-MM/` 폴더에
+  그 달 자료만 넣고, `실행.bat`/`DB업데이트만.bat`/`보고서만생성.bat`/
+  `전년대비보고서만생성.bat` 등 배치 파일을 더블클릭해 결과(`output/`)만 받는다.
+  **팀원은 코드(.py)를 절대 건드리지 않는다** — git 저장소가 됐다고 해서 팀원이
+  직접 git 명령을 쓰거나 커밋하는 것은 아니다. 자동 pull은 bat 실행 시 내부적으로만
+  일어난다.
 - **input/output 실무 데이터의 실제 위치는 NAS다.** 로컬 저장소의 input/output은
   Claude Code 세션에서 코드 변경을 격리 테스트하거나 실제 실행을 검증할 때 쓰는 것이고,
   팀이 매달 실제로 쓰는 자료·산출물은 NAS 기준이다.
-- **코드 수정 흐름**: 이 PC에서 코드 수정 → 브랜치 생성 → PR → main에 병합 → 병합된
-  최신 코드를 저장소 루트의 `1_배포_NAS로_동기화.bat` 실행으로 NAS에 반영한다. 이 배치는
-  git이 아니라 **순수 파일 복사(robocopy)**로 `*.py`, `*.bat`, `requirements.txt`,
-  `templates/`만 NAS에 덮어쓰고, `input/output/DB/backup`은 절대 건드리지 않는다
-  (2026-07-09 실제 배포 실행으로 데이터 폴더 미접근 확인 완료).
+- **코드 수정 흐름**: 이 PC에서 코드 수정 → 브랜치 생성 → PR → main에 병합. 이후
+  NAS 쪽은 팀원이 실행 bat을 더블클릭하는 순간 `_auto_git_pull.bat`이 자동으로
+  최신 main을 반영한다(수동 배포 스크립트 불필요해짐). `1_배포_NAS로_동기화.bat`
+  (robocopy 방식)은 `docs/legacy/1_배포_NAS로_동기화.bat.old`로 이관되어 더 이상
+  쓰지 않는다.
+- **⚠️ 아직 실기기 미검증**: `_auto_git_pull.bat`의 한글 알림 메시지가 실제
+  한국어 Windows 콘솔 화면에 정상 출력되는지는 로컬 sandbox 추론으로만 확인됐고,
+  NAS를 통해 실제 팀원 PC에서 `실행.bat` 더블클릭으로 확인된 적은 아직 없다.
+  자세한 내용은 `docs/legacy/cp949_조사결과_및_결정.md` 5번 항목 참고.
 
 ## input 폴더 구조 (2026-07부터: input/YYYY-MM/ 정산월 폴더제)
 - **2026-07부터 `input/` 은 정산월별 하위 폴더(`input/YYYY-MM/`, 예: `input/2026-06/`) 안에
