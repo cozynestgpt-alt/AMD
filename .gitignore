@@ -52,3 +52,10 @@ DB/*.xlsx
 DB/*.xls
 !DB/.gitkeep
 !DB/DB_TEMPLATE.xlsx
+
+# git pull 자동 실행 시 동시 실행 방지용 락 파일 (NAS에서만 생성됨)
+.pulling.lock
+
+# templates/ 폴더에 실수로 들어간 실제 산출물 (템플릿 아님, NAS 실무 파일)
+templates/더-AMD-260710-06월 판매사원판매수수료(관리 최종)_ver260710.xlsm
+templates/정산보고.xlsx

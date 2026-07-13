@@ -1,5 +1,6 @@
 @echo off
 set SCRIPT_DIR=%~dp0
+call "%SCRIPT_DIR%_auto_git_pull.bat"
 
 python "%SCRIPT_DIR%history_report.py"
 if errorlevel 1 goto ERROR
