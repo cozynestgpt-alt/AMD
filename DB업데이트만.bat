@@ -1,8 +1,7 @@
 @echo off
-chcp 65001 > nul
 cd /d "%~dp0"
 
-call "%~dp0_최신코드자동확인.bat"
+call "%~dp0_auto_git_pull.bat"
 
 echo ===============================================
 echo DB update only V8 Final Release

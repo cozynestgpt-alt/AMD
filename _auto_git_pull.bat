@@ -1,7 +1,6 @@
 @echo off
-chcp 65001 > nul
-rem 실행용 .bat들이 python을 호출하기 전에 공통으로 call 하는 내부 헬퍼입니다.
-rem 팀원이 직접 더블클릭할 필요는 없습니다.
+rem Internal helper called by the run bat files before invoking python.
+rem Team members do not need to double-click this file directly.
 setlocal
 set "LOCKFILE=%~dp0.pulling.lock"
 
@@ -14,7 +13,7 @@ if not exist "%LOCKFILE%" (
     echo. > "%LOCKFILE%" 2>nul
     git -C "%~dp0." pull --ff-only >nul 2>&1
     if errorlevel 1 (
-        echo [알림] 최신 코드 확인 실패, 기존 코드로 진행합니다.
+        powershell -NoProfile -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACcAWwBMxby5XQAgAFzN4MIgAFTP3LQgAFXWeMcgAOTCKNMsACAAMK50yCAAVM/ctFy4IADEyYnVadXIsuSyLgAnAA==
     )
     del /f /q "%LOCKFILE%" >nul 2>&1
 )
