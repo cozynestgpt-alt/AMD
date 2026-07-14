@@ -9,6 +9,16 @@
 # (never "*", to avoid trusting every repository on the machine), then
 # retries the pull once. If it still fails for some other reason, it shows
 # a Korean notice and lets the caller continue with the existing code.
+#
+# git itself may not be installed on a team member's PC. In that case every
+# "git ..." call below would fail with PowerShell's own "term not recognized"
+# error, which is a different failure than "pull failed" and was leaking to
+# the console as a confusing raw error instead of a clear Korean notice. This
+# check must run before any other git invocation in this script.
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host '[알림] Git이 설치되어 있지 않아 최신 코드를 받지 못했습니다. IT 담당자에게 Git 설치를 요청해 주세요. 기존 코드로 계속 진행합니다.'
+    exit 1
+}
 
 $repoDir = $env:REPO_DIR
 $safeDirValue = '%(prefix)///nas/CN_AMD/판매수수료 관련자료/salary_system_claude'
