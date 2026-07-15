@@ -145,27 +145,20 @@ def make_report(db_path: Path, out_path: Path):
 def run(base_dir: Path = None, ym: str = None):
     base_dir=Path(base_dir or Path(__file__).parent)
     db_path=base_dir/'DB'/'월별손익DB.xlsx'
-    out_path=base_dir/'output'/'연도별_분기별_시즌별_손익분석.xlsx'
-    make_report(db_path,out_path)
-    print(f'✅ 손익 분석 보고서 생성: {out_path}')
-    # ym이 안 넘어와도(예: history_report.py 단독 실행) DB의 최신월로 자동 보완한다.
-    # 그렇지 않으면 output/YYYY-MM/ 사본이 갱신되지 않고 옛날 내용으로 남는 문제가 있었다.
-    month_ym = ym
+    # 보고서 내용은 항상 DB상 실제 최신월 기준이라(make_report 내부에서 별도로
+    # 재계산), 저장 폴더도 호출부가 넘긴 ym이 아니라 DB의 실제 최신월을 쓴다.
+    # (그렇지 않으면 과거월 재실행 시 최신월 내용이 엉뚱한 폴더에 저장된다.)
+    try:
+        rows = load_db(db_path)
+        month_ym = sorted({r['년-월'] for r in rows})[-1] if rows else None
+    except Exception:
+        month_ym = None
     if not month_ym:
-        try:
-            rows = load_db(db_path)
-            month_ym = sorted({r['년-월'] for r in rows})[-1] if rows else None
-        except Exception:
-            month_ym = None
-    if month_ym:
-        try:
-            import shutil
-            month_out = base_dir/'output'/month_ym/'연도별_분기별_시즌별_손익분석.xlsx'
-            month_out.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(out_path, month_out)
-            print(f'   ↳ 월별 사본: {month_out}')
-        except Exception as e:
-            print(f'   ⚠️ 월별 사본 저장 오류: {e}')
+        print('⚠️ 손익 분석 보고서: 정산월을 확인할 수 없어 건너뜁니다 (DB 비어있음)')
+        return None
+    out_path = base_dir/'output'/month_ym/'연도별_분기별_시즌별_손익분석.xlsx'
+    make_report(db_path, out_path)
+    print(f'✅ 손익 분석 보고서 생성: {out_path}')
     return out_path
 
 if __name__=='__main__':
