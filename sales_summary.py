@@ -112,14 +112,18 @@ def make_sales_summary(ym: str, base_dir: Path,
                      if r["emp"].get("pay_type","")=="중간관리" and r["emp"]["name"])
     수수료합계 = 근로수수료 + 중간관리수수료
 
+    # 이번 달 매출이 있는 매장만 집계 대상 (매출 0/데이터 없음 → 완전 제외)
+    sales_shops = {s for s, d in sales_detail.items() if d.get("grand_total", 0)}
+
     # 지원금/공제
     from expense_report import STORE_CODE_MAP
-    직배비합계  = sum(expense_rows.get(s,{}).get("j_direct",  0) for s in STORE_CODE_MAP)
-    덜받음합계  = sum(expense_rows.get(s,{}).get("shortfall", 0) for s in STORE_CODE_MAP)
-    사은품합계  = sum(expense_rows.get(s,{}).get("gift",      0) for s in STORE_CODE_MAP)
-    POS공제합계 = sum(expense_rows.get(s,{}).get("pos",       0) for s in STORE_CODE_MAP)
-    POS환급합계 = sum(expense_rows.get(s,{}).get("t_refund",  0) for s in STORE_CODE_MAP)
-    LOSS합계    = sum(expense_rows.get(s,{}).get("loss",      0) for s in STORE_CODE_MAP)
+    _scm_sales  = [s for s in STORE_CODE_MAP if s in sales_shops]
+    직배비합계  = sum(expense_rows.get(s,{}).get("j_direct",  0) for s in _scm_sales)
+    덜받음합계  = sum(expense_rows.get(s,{}).get("shortfall", 0) for s in _scm_sales)
+    사은품합계  = sum(expense_rows.get(s,{}).get("gift",      0) for s in _scm_sales)
+    POS공제합계 = sum(expense_rows.get(s,{}).get("pos",       0) for s in _scm_sales)
+    POS환급합계 = sum(expense_rows.get(s,{}).get("t_refund",  0) for s in _scm_sales)
+    LOSS합계    = sum(expense_rows.get(s,{}).get("loss",      0) for s in _scm_sales)
     공제합계    = 덜받음합계 + 사은품합계 + POS공제합계 - POS환급합계 + LOSS합계
 
     # 아르바이트 (백화점 소계 + 월별입력)
@@ -158,10 +162,9 @@ def make_sales_summary(ym: str, base_dir: Path,
     # 기타공제
     전화요금합계    = sum(phone_data.get(s,0) for s in mgr_shops)
     직배비공제합계  = sum(deliv_data.get(s,0) for s in mgr_shops)
-    # 세액공제: 64개 매장 기준 (POS환급 외 행사매장 제외 없음)
-    from expense_report import STORE_CODE_MAP as _SCM2
+    # 세액공제: 매출 있는 매장 기준 (POS환급 외 행사매장 제외 없음)
     세액공제합계    = sum(v for shop,v in tax_data.items()
-                        if shop in _SCM2)
+                        if shop in sales_shops)
     기타공제합계    = 전화요금합계 + 직배비공제합계 + 세액공제합계
 
     # 송금액

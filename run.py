@@ -684,10 +684,15 @@ def main():
             ["*재고실사*공제건*합계*.xlsx", "*재고실사*.xlsx"], base=month_dir)
         _inv_d = _linv(_inv_path2) if _inv_path2 else {}
         _event2 = {e["shop"] for e in employees if (e.get("note","") or "").strip()=="행사매장"}
+        # 이번 달 매출이 있는 매장만 대상 (매출 없는 매장은 지급/공제 항목에서 완전 제외)
+        _sales_shops2 = {s for s,d in sales_detail_for_notice.items() if d.get("grand_total",0)}
         _pos_t2 = sum(d.get("pos",0) for d in _ded_d.values())
-        _pos_z2 = sum(1 for s,d in _ded_d.items() if d.get("pos",0)==0 and s not in _event2)
+        _pos_z2 = sum(1 for s,d in _ded_d.items()
+                      if d.get("pos",0)==0 and s not in _event2 and s in _sales_shops2)
         _pu2 = int(_pos_t2/_pos_z2/10)*10 if _pos_z2 else 0
         for _shop in _scm.keys():
+            if _shop not in _sales_shops2:
+                continue
             _d2=_ded_d.get(_shop,{})
             expense_rows_for_notice[_shop] = {
                 "j_direct":  _exp_d.get(_shop,0),
@@ -761,7 +766,7 @@ def main():
     # ── 경비지원및공제 집계 처리 ─────────────────────────────
     try:
         from expense_report import run as expense_run
-        expense_run(ym, BASE, employees)
+        expense_run(ym, BASE, employees, sales_detail_for_notice)
     except Exception as e:
         print(f"     ⚠️  경비지원및공제 처리 오류: {e}")
 
@@ -782,13 +787,17 @@ def main():
             _inv = _li(_inv_path) if _inv_path else {}
             _event = {e["shop"] for e in employees
                       if (e.get("note","") or "").strip()=="행사매장"}
+            # 이번 달 매출이 있는 매장만 대상 (매출 없는 매장은 완전 제외)
+            _sales_shops3 = {s for s,d in sales_detail_for_notice.items() if d.get("grand_total",0)}
             _pos_t = sum(d.get("pos",0) for d in _ded.values())
             _pos_z = sum(1 for s,d in _ded.items()
-                         if d.get("pos",0)==0 and s not in _event)
+                         if d.get("pos",0)==0 and s not in _event and s in _sales_shops3)
             _pu = int(_pos_t/_pos_z/10)*10 if _pos_z else 0
             _pu_val = _pu   # try 성공 시에만 갱신
             _exp_map = {}
             for _shop in _SCM.keys():
+                if _shop not in _sales_shops3:
+                    continue
                 _d=_ded.get(_shop,{}); _j=load_expense(exp_path, ym).get(_shop,0) if exp_path else 0
                 _l=_d.get("shortfall",0); _n=_inv.get(_shop,0)
                 _o=_d.get("gift",0); _s=_d.get("pos",0)
