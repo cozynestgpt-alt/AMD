@@ -540,13 +540,6 @@ def make_year_compare_report(ym: str, base_dir: Path) -> Path:
 
     out_path = output_dir / "판매수수료_전년대비보고서.xlsx"
     wb.save(out_path)
-    # also copy to root output for quick access
-    root_out = base_dir / "output" / "판매수수료_전년대비보고서.xlsx"
-    try:
-        import shutil
-        shutil.copy2(out_path, root_out)
-    except Exception:
-        pass
     print(f"     ✅ 판매수수료_전년대비보고서.xlsx 생성: {out_path}")
     return out_path
 

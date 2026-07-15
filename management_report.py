@@ -522,9 +522,16 @@ def make_management_report(base_dir: Path = None, out_path: Path = None, ym: str
     rows = load_db(base_dir)
     latest_ym = latest_year_month(rows)
     cur_year, cur_month = ym_sort_key(latest_ym)
-    out_dir = base_dir / 'output'
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = Path(out_path or out_dir / '경영분석보고서.xlsx')
+    # 보고서 내용은 항상 DB상 실제 최신월(latest_ym) 기준이라, 저장 폴더도
+    # 호출부가 넘긴 ym이 아니라 latest_ym을 쓴다(과거월 재실행 시 최신월
+    # 내용이 엉뚱한 폴더에 저장되는 것을 방지).
+    if out_path is None:
+        out_dir = base_dir / 'output' / latest_ym
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / '경영분석보고서.xlsx'
+    else:
+        out_path = Path(out_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
     wb.remove(wb.active)
     add_dashboard(wb, rows, cur_year, cur_month)
@@ -541,18 +548,6 @@ def make_management_report(base_dir: Path = None, out_path: Path = None, ym: str
         ws.page_margins.left = 0.3; ws.page_margins.right = 0.3; ws.page_margins.top = 0.5; ws.page_margins.bottom = 0.5
     wb.save(out_path)
     print(f'✅ 경영분석보고서 생성 완료: {out_path}')
-    # ym이 안 넘어와도(예: management_report.py 단독 실행) DB의 최신월로 자동 보완한다.
-    # 그렇지 않으면 output/YYYY-MM/ 사본이 갱신되지 않고 옛날 내용으로 남는 문제가 있었다.
-    month_ym = ym or latest_ym
-    if month_ym:
-        try:
-            import shutil
-            month_out = base_dir/'output'/month_ym/'경영분석보고서.xlsx'
-            month_out.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(out_path, month_out)
-            print(f'   ↳ 월별 사본: {month_out}')
-        except Exception as e:
-            print(f'   ⚠️ 월별 사본 저장 오류: {e}')
     return out_path
 
 
