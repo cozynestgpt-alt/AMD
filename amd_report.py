@@ -298,10 +298,17 @@ def make_amd_report(ym: str, base_dir: Path, results: list,
         if not r["emp"]["name"]: continue
         shop_emps[r["emp"]["shop"]].append(r)
 
+    # 이번 달 매출이 있는 매장만 리스트업 (매출 0/데이터 없음 → 행 자체를 만들지 않음)
+    sales_shops = {s for s, d in (sales_detail or {}).items() if d.get("grand_total", 0)}
+
     # ── 매장별 1행 집계 ──────────────────────────────────
     store_rows = []
     for shop, code in sorted(STORE_CODE_MAP.items(), key=lambda x: x[1]):
+        if shop not in sales_shops:
+            continue
         emps = shop_emps.get(shop, [])
+        if not emps:
+            print(f"     ⚠️  매출은 있는데 사원 미배정: {shop}")
         er   = (expense_rows or {}).get(shop, {})
         sd   = (sales_detail or {}).get(shop, {})
 

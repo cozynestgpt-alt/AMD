@@ -150,9 +150,11 @@ def load_inventory(path: Path) -> dict:
 # ══════════════════════════════════════════════════════════════
 # 2. 보고서 생성
 # ══════════════════════════════════════════════════════════════
-def make_expense_report(ym: str, base_dir: Path, master: list) -> Path:
+def make_expense_report(ym: str, base_dir: Path, master: list,
+                        sales_detail: dict = None) -> Path:
     """
     master: 사원마스터 list [{shop, name, grade, income, pay_type, bank, account}]
+    sales_detail: {매장명: {..., grand_total}} — 이번 달 매출 있는 매장만 행 생성
     """
     INPUT  = base_dir / "input" / ym
     OUTPUT = base_dir / "output" / ym
@@ -201,17 +203,33 @@ def make_expense_report(ym: str, base_dir: Path, master: list) -> Path:
     # ── 전체 매장 목록 (매장코드 오름차순) ───────────────────
     all_shops = sorted(STORE_CODE_MAP.keys(), key=lambda x: STORE_CODE_MAP[x])
 
+    # 이번 달 매출이 있는 매장만 리스트업 (매출 0/데이터 없음 → 행 자체를 만들지 않음)
+    # sales_detail이 안 넘어온 호출부(하위호환)는 게이트를 걸지 않고 기존대로 전체 순회
+    if sales_detail is not None:
+        sales_shops = {s for s, d in sales_detail.items() if d.get("grand_total", 0)}
+        no_sales_shops = [s for s in all_shops if s not in sales_shops]
+        if no_sales_shops:
+            print(f"     매출 없는 매장 제외: {no_sales_shops}")
+        all_shops = [s for s in all_shops if s in sales_shops]
+
     # 행사매장 목록 (사원마스터 비고="행사매장" → POS환급 배분 제외)
     event_shops = {
         shop for shop, inf in shop_info.items()
         if (inf.get("note","") or "").strip() == "행사매장"
     }
 
+    # 매출은 있는데 사원(대표자) 배정이 안 된 매장 → 경고만 표시, 리스트업은 유지
+    unstaffed_with_sales = [s for s in all_shops
+                            if s not in shop_info and s not in event_shops]
+    if unstaffed_with_sales:
+        print(f"     ⚠️  매출은 있는데 사원 미배정: {unstaffed_with_sales}")
+
     # POS환급 계산: ded_data에 있고 행사매장이 아닌 POS=0 매장에 균등 배분
+    # (매출 게이트를 통과한 매장만 대상 — 매출 없는 매장은 all_shops에서 이미 빠짐)
     pos_total    = sum(d.get("pos",0) for d in ded_data.values())
     pos_zero_cnt = sum(
         1 for shop, d in ded_data.items()
-        if d.get("pos",0) == 0 and shop not in event_shops
+        if d.get("pos",0) == 0 and shop not in event_shops and shop in all_shops
     )
     pos_refund_unit = (int(pos_total / pos_zero_cnt / 10) * 10
                        if pos_zero_cnt > 0 else 0)
@@ -501,10 +519,10 @@ def make_expense_report(ym: str, base_dir: Path, master: list) -> Path:
 # ══════════════════════════════════════════════════════════════
 # 메인 (단독 실행 테스트용)
 # ══════════════════════════════════════════════════════════════
-def run(ym: str, base_dir: Path, master: list):
+def run(ym: str, base_dir: Path, master: list, sales_detail: dict = None):
     print(f"  📋 경비지원및공제 집계 처리 중...")
     try:
-        path, rev, pay = make_expense_report(ym, base_dir, master)
+        path, rev, pay = make_expense_report(ym, base_dir, master, sales_detail)
         print(f"     ✅ 경비지원및공제_집계.xlsx  "
               f"(회수 {rev}개 매장, 별도지급 {pay}개 매장)")
         return path
