@@ -182,7 +182,7 @@ def load_phone_fee(path: Path, ym: str) -> dict:
 def load_delivery_fee(path: Path) -> dict:
     """로젠 고객직배 → {매장명: (신용+제주운임/산간료)합계×1.1}
     - 운송장번호가 있는 행만 집계 (없는 행 = 소계행 → 제외)
-    - 집배구분="요청반품" & 물품명에 "입금완료" 포함 → 이미 정산된 반품건이므로 제외
+    - 집배구분="요청반품" → 제외
     - 중간관리 매장 필터링은 호출부에서 처리 (mgr_shops 체크)
     컬럼 위치는 매달 바뀔 수 있어 헤더 행에서 실제 위치를 찾아 사용"""
     if not path or not path.exists(): return {}
@@ -220,9 +220,8 @@ def load_delivery_fee(path: Path) -> dict:
     for row in rows_iter:
         운송장 = row[i_track]
         if not 운송장: continue                                  # 소계행 제외
-        cat  = row[i_cat]
-        item = str(row[i_item] or "")
-        if cat == "요청반품" and "입금완료" in item: continue        # 정산완료 반품건 제외
+        cat = row[i_cat]
+        if cat == "요청반품": continue                              # 반품건 제외
 
         shop   = str(row[i_shop] or "").strip()
         shop   = DELIVERY_NAME_MAP.get(shop, shop)
