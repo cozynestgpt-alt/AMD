@@ -266,7 +266,13 @@ def make_sales_analysis(ym: str, base_dir: Path,
     ws.row_dimensions[4].height=32
 
     # ── 데이터 행 ──────────────────────────────────────────────
+    # 이번 달 매출이 있는 매장만 리스트업 (매출 0/데이터 없음 → 행 자체를 만들지 않음)
+    sales_shops = {s for s, d in sales_vp.items() if d.get("pf", 0)}
     sorted_shops = sorted(STORE_CODE_MAP.keys(), key=lambda x: STORE_CODE_MAP[x])
+    no_sales_shops = [s for s in sorted_shops if s not in sales_shops]
+    if no_sales_shops:
+        print(f"     매출 없는 매장 제외: {no_sales_shops}")
+    sorted_shops = [s for s in sorted_shops if s in sales_shops]
 
     tot = {k:0 for k in ["pf","vp","ps","vn","cg","op","mgr_off","mgr_on","mgr","bosm","boss1",
                           "arba","labor","exp","total_exp","profit"]}
@@ -275,6 +281,8 @@ def make_sales_analysis(ym: str, base_dir: Path,
         sv = sales_vp.get(shop,{})
         sc = shop_calc.get(shop,{})
         구분 = shop_구분.get(shop,"")
+        if not sc:
+            print(f"     ⚠️  매출은 있는데 사원 미배정: {shop}")
 
         pf  = sv.get("pf",0)                    # 판매금액
         vp  = sv.get("vp",0)                    # 수금액V+
