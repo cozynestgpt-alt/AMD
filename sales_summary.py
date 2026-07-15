@@ -327,6 +327,11 @@ def make_sales_summary(ym: str, base_dir: Path,
         _sv2(35, 6, 구분별_매장수.get("행사매장",0))
         _sv2(35, 7, 구분별_송금.get("행사매장",0))
 
+    # 인쇄 영역: 템플릿의 고정값(B2:G34)이 아니라 실제 마지막 데이터 행 기준으로 설정
+    # (행사매장 행이 있을 때 35행까지 늘어나므로, 그렇지 않으면 마지막 줄이 잘림)
+    last_row = 35 if 행사_있음 else 34
+    ws.print_area = f"B2:G{last_row}"
+
     out_path = OUTPUT / "판매수수료집계.xlsx"
     wb.save(out_path)
     return out_path
