@@ -37,7 +37,16 @@ public static extern uint GetConsoleOutputCP();
 
     if (-not (Test-Path $noticePath)) { exit 0 }
 
-    $content = Get-Content -Path $noticePath -Raw -ErrorAction Stop
+    # -Encoding UTF8 is required here: NOTICE.txt is plain UTF-8 without a BOM
+    # (e.g. when edited with Notepad or written by common tooling), and
+    # Windows PowerShell 5.1's Get-Content falls back to the system ANSI code
+    # page (CP949 on Korean Windows) whenever no BOM is present to auto-detect
+    # from, silently corrupting every Korean character read from the file --
+    # confirmed by reproducing the exact garbled output this way. This is a
+    # different bug from the console output encoding fix in _pull_retry.ps1:
+    # this one corrupts the string in memory before Write-Host ever runs, so
+    # no console-side fix could have caught it.
+    $content = Get-Content -Path $noticePath -Raw -Encoding UTF8 -ErrorAction Stop
     if ([string]::IsNullOrWhiteSpace($content)) { exit 0 }
 
     $hash = (git -C "$repoDir." log -1 --format=%H -- NOTICE.txt 2>$null)
