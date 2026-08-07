@@ -12,8 +12,26 @@
 #
 # Any failure here (missing file, git error, etc.) is swallowed silently so
 # it can never block the actual work (python report generation).
+#
+# Also syncs [Console]::OutputEncoding to the console's real active code page
+# before writing any Korean text below -- same fix as _pull_retry.ps1, same
+# root cause (Windows PowerShell 5.1 does not reliably auto-match this when
+# launched via "powershell -File" from a .bat, which garbled Korean output on
+# a team member's PC even though this file is saved as UTF-8).
 
 try {
+    try {
+        Add-Type -Name NativeConsole -Namespace Amd -MemberDefinition @'
+[DllImport("kernel32.dll")]
+public static extern uint GetConsoleOutputCP();
+'@
+        $consoleCp = [Amd.NativeConsole]::GetConsoleOutputCP()
+        if ($consoleCp -gt 0) {
+            [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding([int]$consoleCp)
+        }
+    } catch {
+    }
+
     $repoDir = $env:REPO_DIR
     $noticePath = Join-Path $repoDir "NOTICE.txt"
 
