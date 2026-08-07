@@ -10,6 +10,29 @@
 # retries the pull once. If it still fails for some other reason, it shows
 # a Korean notice and lets the caller continue with the existing code.
 #
+# Windows PowerShell 5.1 does not always initialize [Console]::OutputEncoding
+# to match the code page the console window is actually using (e.g. CP949 on
+# Korean Windows) when launched via "powershell -File" from a .bat. When they
+# mismatch, every Write-Host with Korean text below comes out as mojibake even
+# though this file itself is saved as UTF-8 -- confirmed on a team member's PC
+# where run.py's own console output was fine but this script's was garbled.
+# Read the console's real active output code page from Win32 directly (not
+# hardcoded to 949, not parsed from localized "chcp" text) and sync
+# OutputEncoding to it before any Korean text is written. Best-effort: if this
+# fails for any reason (e.g. output redirected to a file), fall through and
+# let the rest of the script run normally.
+try {
+    Add-Type -Name NativeConsole -Namespace Amd -MemberDefinition @'
+[DllImport("kernel32.dll")]
+public static extern uint GetConsoleOutputCP();
+'@
+    $consoleCp = [Amd.NativeConsole]::GetConsoleOutputCP()
+    if ($consoleCp -gt 0) {
+        [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding([int]$consoleCp)
+    }
+} catch {
+}
+
 # git itself may not be installed on a team member's PC. In that case every
 # "git ..." call below would fail with PowerShell's own "term not recognized"
 # error, which is a different failure than "pull failed" and was leaking to
