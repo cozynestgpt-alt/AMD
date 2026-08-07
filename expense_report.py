@@ -137,14 +137,29 @@ def load_inventory(path: Path) -> dict:
                  xl.sheet_names[0])
     df = pd.read_excel(path, sheet_name=sheet, header=None)
     data = {}
+    unmatched = set()
     for r in range(4, len(df)):
         shop = df.iloc[r, 1]
         val  = df.iloc[r, 8]   # I열
-        if pd.notna(shop) and str(shop).strip() and str(shop) != "nan":
+        if (pd.notna(shop) and str(shop).strip() and str(shop) != "nan"
+                and pd.notna(val) and isinstance(val, (int, float)) and val > 0):
             shop_raw = str(shop).strip()
-            shop_s   = INV_NAME_MAP.get(shop_raw, shop_raw)
-            if pd.notna(val) and isinstance(val, (int, float)) and val > 0:
-                data[shop_s] = data.get(shop_s, 0) + int(val)
+            # 매칭 우선순위: 정식 매장명 그대로 → 하드코딩 약칭표(INV_NAME_MAP,
+            # 어순이 다르거나 글자가 달라 "+점"으로 못 고치는 경우) → "+점" 보정
+            # (매달 파일마다 "점" 자만 빠진 새 약칭이 계속 나와서, 매번
+            # INV_NAME_MAP에 항목을 추가하지 않아도 되도록 일반화한 폴백)
+            if shop_raw in STORE_CODE_MAP:
+                shop_s = shop_raw
+            elif shop_raw in INV_NAME_MAP:
+                shop_s = INV_NAME_MAP[shop_raw]
+            elif f"{shop_raw}점" in STORE_CODE_MAP:
+                shop_s = f"{shop_raw}점"
+            else:
+                shop_s = shop_raw
+                unmatched.add(shop_raw)
+            data[shop_s] = data.get(shop_s, 0) + int(val)
+    if unmatched:
+        print(f"     ⚠️  재고실사 매장명 매칭 실패(정식 매장명 확인 필요, 금액 누락 위험): {sorted(unmatched)}")
     return data
 
 # ══════════════════════════════════════════════════════════════
