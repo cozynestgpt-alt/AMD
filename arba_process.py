@@ -79,6 +79,12 @@ DEPT_TO_STORE = {
     "신세계충청점":        "신세계천안아산점",   # 충청점 = 천안아산점
     "양주점(LF몰)":        "LF스퀘어양주점",
     "파주점_신세계아울렛": "신세계아울렛파주점",
+    "송도점(현대아울렛)":  "현대아울렛송도점",
+    "김해점(롯데아울렛)":  "롯데아울렛김해점",
+    "이천점(롯데아울렛)":  "롯데아울렛이천점",
+    "군산점(롯데아울렛)":  "롯데아울렛군산점",
+    "현대대전점(아울렛)":  "현대아울렛대전점",
+    "현대남양주점(아울렛)":"현대아울렛남양주점",
     "AK분당점":            "AK프라자분당점",
     "AK수원점":            "AK프라자수원점",
     "AK광명점":            "AK프라자광명점(직영점)",  # 직영점 — 판매수수료 대상 아님
@@ -231,7 +237,14 @@ def merge(staff: dict, salary: dict, attendance: dict) -> list:
 # ══════════════════════════════════════════════════════════════
 # 3. 출력 파일 생성
 # ══════════════════════════════════════════════════════════════
-def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
+def load_class_store_names(input_dir: Path) -> set:
+    """매장구분_행사_신규_폐점_YYYYMM.xlsx → 등록된 매장명 집합 (파일 없으면 빈 집합)"""
+    from year_compare_report import _find_store_class_file, load_store_class
+    path = _find_store_class_file(input_dir, "")
+    return {v["매장명"] for v in load_store_class(path).values() if v["매장명"]}
+
+def make_arba_xlsx(results: list, ym: str, out_dir: Path,
+                   class_store_names: set = None) -> Path:
     wb = openpyxl.Workbook()
 
     # ── 시트1: 전체목록 ──────────────────────────────────────
@@ -444,6 +457,9 @@ def make_arba_xlsx(results: list, ym: str, out_dir: Path) -> Path:
         # DEPT_TO_STORE에 아직 등록 안 된 신규 미입점행사 매장 대비 폴백
         if (dept or "").strip().startswith("ET_"):
             return "미입점행사"
+        # 매장구분 파일에 없는 매장은 직영점 (파일이 없으면 기존처럼 백화점)
+        if class_store_names and s not in class_store_names:
+            return "직영점"
         return "백화점"
 
     # 구분 순서 및 색상
@@ -857,8 +873,12 @@ def run(ym: str, base_dir: Path):
         unique_no_map = list(set(no_map))
         print(f"  ⚠️  매장매핑 미확인 부서: {', '.join(unique_no_map)}")
 
+    class_store_names = load_class_store_names(INPUT)
+    if not class_store_names:
+        print("  ⚠️  매장구분 파일 없음 → 직영점 자동분류 생략 (백화점으로 처리)")
+
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    path = make_arba_xlsx(results, ym, OUTPUT)
+    path = make_arba_xlsx(results, ym, OUTPUT, class_store_names)
     print(f"     ✅ 아르바이트_정산서.xlsx  ({len(results)}명)")
     return path
 
